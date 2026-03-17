@@ -58,11 +58,26 @@ export class DatabaseService {
   }
 
   async getAllBookmarks(): Promise<BookmarkDoc[]> {
-    const result = await this.localDb.find({
-      selector: { type: 'bookmark' },
-      sort: [{ createdAt: 'desc' }]
-    } as any);
-    return (result.docs as unknown) as BookmarkDoc[];
+    try {
+      const result = await this.localDb.find({
+        selector: { type: 'bookmark' },
+        sort: [{ createdAt: 'desc' }]
+      } as any);
+      return (result.docs as unknown) as BookmarkDoc[];
+    } catch (err) {
+      console.warn('Sorted fetch failed (possibly index building), falling back to unsorted:', err);
+      const result = await this.localDb.find({
+        selector: { type: 'bookmark' }
+      } as any);
+      // Manual sort as fallback
+      const docs = (result.docs as unknown) as BookmarkDoc[];
+      return docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+  }
+
+  async deleteBookmark(id: string) {
+    const doc = await this.localDb.get(id);
+    return this.localDb.remove(doc);
   }
 
   async searchBookmarks(query: string): Promise<BookmarkDoc[]> {

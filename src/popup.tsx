@@ -1,11 +1,29 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
-import { Bookmark, Loader2, CheckCircle2, XCircle, Search } from 'lucide-react'
+import { Bookmark, Loader2, CheckCircle2, XCircle, Search, ExternalLink, ArrowRight } from 'lucide-react'
+import { dbService, BookmarkDoc } from './services/db'
 import './index.css'
 
 const App = () => {
+  const [activeTab, setActiveTab] = useState<'save' | 'search'>('save');
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<BookmarkDoc[]>([]);
+  const [recentBookmarks, setRecentBookmarks] = useState<BookmarkDoc[]>([]);
+
+  useEffect(() => {
+    loadRecent();
+  }, []);
+
+  const loadRecent = async () => {
+    try {
+      const all = await dbService.getAllBookmarks();
+      setRecentBookmarks(all.slice(0, 3));
+    } catch (err) {
+      console.error('Failed to load recent:', err);
+    }
+  };
 
   const handleSave = async () => {
     setStatus('saving');
@@ -22,7 +40,8 @@ const App = () => {
 
       if (response && response.success) {
         setStatus('success');
-        setTimeout(() => window.close(), 1500);
+        loadRecent();
+        setTimeout(() => setActiveTab('search'), 1500);
       } else {
         throw new Error(response?.error || 'Failed to save');
       }
@@ -33,79 +52,181 @@ const App = () => {
     }
   };
 
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const results = await dbService.searchBookmarks(query);
+    setSearchResults(results.slice(0, 5));
+  };
+
   const openDashboard = () => {
     chrome.runtime.openOptionsPage();
   };
 
   return (
-    <div className="w-[360px] bg-zinc-950 text-zinc-100 p-6 font-sans">
-      <div className="flex items-center justify-between mb-8">
+    <div className="w-[380px] bg-zinc-950 text-zinc-100 p-0 font-sans overflow-hidden border border-zinc-900 rounded-3xl shadow-2xl">
+      {/* Header */}
+      <div className="p-6 pb-4 flex items-center justify-between border-b border-zinc-900 bg-zinc-900/20 backdrop-blur-md">
         <div className="flex items-center gap-2">
-          <div className="p-2 bg-indigo-600 rounded-lg">
-            <Bookmark size={20} className="text-white" />
+          <div className="p-2 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-600/20">
+            <Bookmark size={18} className="text-white" />
           </div>
-          <h1 className="text-lg font-bold tracking-tight">Bookmark Intel</h1>
+          <h1 className="text-base font-bold tracking-tight">Vault Intelligence</h1>
         </div>
-        <button 
-          onClick={openDashboard}
-          className="p-2 hover:bg-zinc-900 rounded-full transition-colors"
-          title="Open Dashboard"
-        >
-          <Search size={18} className="text-zinc-400" />
-        </button>
+        <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800">
+          <button 
+            onClick={() => setActiveTab('save')}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'save' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+          >
+            Save
+          </button>
+          <button 
+            onClick={() => setActiveTab('search')}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'search' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+          >
+            Search
+          </button>
+        </div>
       </div>
 
-      <div className="space-y-4">
-        {status === 'idle' && (
-          <>
-            <p className="text-sm text-zinc-400 mb-6 leading-relaxed">
-              Analyze and save this page to your local knowledge base.
-            </p>
-            <button 
-              onClick={handleSave}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white py-3 rounded-xl font-semibold shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
-            >
-              Analyze & Save
-            </button>
-          </>
-        )}
+      <div className="p-6">
+        {activeTab === 'save' ? (
+          <div className="space-y-6">
+            <div className="min-h-[140px] flex flex-col justify-center">
+              {status === 'idle' && (
+                <div className="animate-in fade-in slide-in-from-bottom-2">
+                  <p className="text-sm text-zinc-400 mb-6 leading-relaxed">
+                    Capture this page into your private, AI-powered knowledge base.
+                  </p>
+                  <button 
+                    onClick={handleSave}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white py-3.5 rounded-xl font-bold shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 group"
+                  >
+                    Analyze & Save Current Page
+                    <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                  </button>
+                </div>
+              )}
 
-        {status === 'saving' && (
-          <div className="flex flex-col items-center py-6 animate-in fade-in zoom-in duration-300">
-            <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-4" />
-            <p className="font-medium">Extracting Intel...</p>
-            <p className="text-xs text-zinc-500 mt-2">Running local AI analysis</p>
-          </div>
-        )}
+              {status === 'saving' && (
+                <div className="flex flex-col items-center py-4 animate-in fade-in zoom-in duration-300">
+                  <div className="relative">
+                    <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-4" />
+                    <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full animate-pulse"></div>
+                  </div>
+                  <p className="font-bold text-zinc-200">Processing Intel...</p>
+                  <p className="text-[10px] text-indigo-400 uppercase tracking-widest mt-2 font-black">Local AI at work</p>
+                </div>
+              )}
 
-        {status === 'success' && (
-          <div className="flex flex-col items-center py-6 animate-in fade-in zoom-in duration-300">
-            <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mb-4">
-              <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+              {status === 'success' && (
+                <div className="flex flex-col items-center py-4 animate-in fade-in zoom-in duration-300">
+                  <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mb-4 border border-emerald-500/20">
+                    <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+                  </div>
+                  <p className="font-bold text-emerald-400 text-lg tracking-tight">Knowledge Captured</p>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-2 font-black">Stored in local vault</p>
+                </div>
+              )}
+
+              {status === 'error' && (
+                <div className="flex flex-col items-center py-2 animate-in fade-in zoom-in duration-300">
+                  <XCircle className="w-10 h-10 text-rose-500 mb-4" />
+                  <p className="font-bold text-rose-400">Mission Failed</p>
+                  <p className="text-xs text-zinc-500 mt-2 text-center leading-relaxed">{error}</p>
+                  <button 
+                    onClick={() => setStatus('idle')}
+                    className="mt-6 text-sm text-indigo-400 hover:text-indigo-300 font-bold transition-colors"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              )}
             </div>
-            <p className="font-bold text-emerald-400">Knowledge Captured</p>
-            <p className="text-xs text-zinc-500 mt-2">Saved to your local vault</p>
-          </div>
-        )}
 
-        {status === 'error' && (
-          <div className="flex flex-col items-center py-4 animate-in fade-in zoom-in duration-300">
-            <XCircle className="w-12 h-12 text-rose-500 mb-4" />
-            <p className="font-medium text-rose-400">Mission Failed</p>
-            <p className="text-xs text-zinc-500 mt-2 text-center px-4">{error}</p>
+            {/* Recent Section */}
+            {recentBookmarks.length > 0 && status === 'idle' && (
+              <div className="pt-6 border-t border-zinc-900 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Recently Saved</h3>
+                  <button onClick={openDashboard} className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest">Full Vault</button>
+                </div>
+                <div className="space-y-2">
+                  {recentBookmarks.map(b => (
+                    <div key={b._id} className="flex items-center justify-between p-3 bg-zinc-900/50 hover:bg-zinc-900 border border-zinc-800/50 rounded-xl transition-all group">
+                      <div className="flex-1 min-w-0 pr-4">
+                        <div className="text-xs font-bold text-zinc-200 truncate group-hover:text-indigo-400 transition-colors">{b.title}</div>
+                        <div className="text-[10px] text-zinc-500 truncate mt-0.5">{new URL(b.url).hostname}</div>
+                      </div>
+                      <a href={b.url} target="_blank" className="p-1.5 text-zinc-600 hover:text-white transition-colors bg-zinc-800 rounded-lg">
+                        <ExternalLink size={12} />
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-6 min-h-[300px] flex flex-col animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="relative group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-indigo-500 transition-colors" size={16} />
+              <input 
+                autoFocus
+                type="text" 
+                placeholder="Search your vault..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all text-sm font-medium"
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto max-h-[200px] space-y-2 pr-1 custom-scrollbar">
+              {searchResults.length > 0 ? (
+                searchResults.map(b => (
+                  <div key={b._id} className="p-3 bg-zinc-900/50 hover:bg-zinc-900 border border-zinc-800/50 rounded-xl transition-all group cursor-pointer" onClick={() => window.open(b.url)}>
+                    <div className="text-xs font-bold text-zinc-200 truncate group-hover:text-indigo-400 transition-colors">{b.title}</div>
+                    <div className="text-[10px] text-indigo-400/70 font-bold mt-1 uppercase tracking-tighter">
+                      {b.category || 'General'}
+                    </div>
+                  </div>
+                ))
+              ) : searchQuery.trim() ? (
+                <div className="py-8 text-center">
+                  <p className="text-xs text-zinc-600 font-bold uppercase tracking-widest">No matches found</p>
+                </div>
+              ) : (
+                <div className="py-8 text-center flex flex-col items-center">
+                  <div className="p-3 bg-zinc-900 rounded-2xl mb-4">
+                    <Search className="text-zinc-700" size={24} />
+                  </div>
+                  <p className="text-xs text-zinc-500 font-medium">Type to search your knowledge base</p>
+                </div>
+              )}
+            </div>
+
             <button 
-              onClick={() => setStatus('idle')}
-              className="mt-6 text-sm text-zinc-400 hover:text-zinc-200 underline decoration-zinc-700"
+              onClick={openDashboard}
+              className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 py-3 rounded-xl text-xs font-bold border border-zinc-800 transition-all flex items-center justify-center gap-2 group"
             >
-              Try Again
+              Open Full Screen Vault
+              <ExternalLink size={14} className="opacity-50 group-hover:opacity-100 transition-opacity" />
             </button>
           </div>
         )}
       </div>
 
-      <div className="mt-8 pt-6 border-t border-zinc-900 flex justify-between items-center text-[10px] text-zinc-600 uppercase tracking-widest font-black">
-        <span>Local-First</span>
-        <span>E2EE Ready</span>
+      <div className="px-6 py-4 bg-zinc-900/50 border-t border-zinc-900 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-sm shadow-emerald-500/50"></div>
+          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Local Engine Online</span>
+        </div>
+        <div className="flex gap-4">
+          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-700">v0.1.5</span>
+        </div>
       </div>
     </div>
   )
