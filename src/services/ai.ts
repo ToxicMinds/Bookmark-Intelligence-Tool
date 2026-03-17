@@ -36,25 +36,36 @@ export class AIService {
     return Array.from(output.data);
   }
 
-  async generateMetadata(text: string): Promise<{ summary: string; tags: string[]; category: string }> {
-    // For MVP, we use a sophisticated heuristic-based extraction for summary/tags 
-    // to keep the extension size manageable, or we could use a small BART model.
-    // Let's implement a 'Mock/Heuristic' one first that looks real.
-    
+  async generateMetadata(text: string, title: string, url?: string): Promise<{ summary: string; tags: string[]; category: string }> {
     const words = text.split(/\s+/);
     const uniqueWords = Array.from(new Set(words.filter(w => w.length > 5)));
-    const tags = uniqueWords.slice(0, 8); // Simple tag extraction
+    const tags = uniqueWords.slice(0, 8);
     
+    let category = "General";
+    
+    if (url) {
+      if (url.includes('amazon.com') || url.includes('ebay.com') || url.includes('shopping')) {
+        category = "Shopping";
+        tags.unshift("Marketplace", "Product");
+      } else if (url.includes('linkedin.com') || url.includes('twitter.com') || url.includes('instagram.com')) {
+        category = "Social";
+        tags.unshift("Social Media", "Profile");
+      } else if (url.includes('github.com') || url.includes('stackoverflow.com')) {
+        category = "Development";
+        tags.unshift("Code", "Tech");
+      }
+    }
+
     return {
-      summary: text.slice(0, 200) + "...", // Simple truncation for now
-      tags: tags,
-      category: "General"
+      summary: text.slice(0, 200) + "...", 
+      tags: Array.from(new Set(tags)),
+      category: category
     };
   }
 
-  async processContent(text: string): Promise<AIResult> {
+  async processContent(text: string, title?: string, url?: string): Promise<AIResult> {
     const embedding = await this.generateEmbedding(text);
-    const metadata = await this.generateMetadata(text);
+    const metadata = await this.generateMetadata(text, title || '', url);
     return {
       ...metadata,
       embedding

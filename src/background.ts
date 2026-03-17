@@ -6,44 +6,66 @@ import { dbService } from './services/db';
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Bookmark Intelligence Extension Installed');
+  chrome.contextMenus.create({
+    id: 'save-highlight',
+    title: 'Save Highlight to Brain Vault',
+    contexts: ['selection']
+  });
+});
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === 'save-highlight' && info.selectionText && tab?.id) {
+    try {
+      await handleSaveBookmark(tab.id, undefined, info.selectionText);
+    } catch (err) {
+      console.error('Context menu save failed:', err);
+    }
+  }
 });
 
 chrome.runtime.onMessage.addListener((request: any, _sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
   if (request.action === 'save_bookmark') {
     handleSaveBookmark(request.tabId, request.folder).then(sendResponse);
-    return true; // Keep channel open for async response
+    return true; 
   }
 });
 
 async function ensureContentScriptLoaded(tabId: number) {
   try {
-    // Try pinging the content script
     await chrome.tabs.sendMessage(tabId, { action: 'ping' });
   } catch (error) {
-    // If it fails, inject the content script manually
     console.log('Injecting content script into tab:', tabId);
     await chrome.scripting.executeScript({
       target: { tabId },
       files: ['content.js']
     });
-    // Wait a bit for script initialization
     await new Promise(resolve => setTimeout(resolve, 100));
   }
 }
 
-async function handleSaveBookmark(tabId: number, userFolder?: string) {
+async function handleSaveBookmark(tabId: number, userFolder?: string, highlight?: string) {
   try {
-    // 1. Ensure content script is ready
     await ensureContentScriptLoaded(tabId);
 
-    // 2. Extract content from page
     const content = await chrome.tabs.sendMessage(tabId, { action: 'extract' });
     if (!content) throw new Error('Failed to extract content');
 
-    // 2. Process with AI (local)
+    // Check if duplicate exists
+    const existing = await dbService.getBookmarkByUrl(content.url);
+    
+    if (existing && highlight) {
+      // Append highlight to existing bookmark
+      const highlights = existing.highlights || [];
+      if (!highlights.includes(highlight)) {
+        await dbService.updateBookmark(existing._id, {
+          highlights: [...highlights, highlight]
+        });
+      }
+      return { success: true, updated: true };
+    }
+
     const aiResult = await aiService.processContent(content.textContent);
 
-    // 3. Store in DB
     await dbService.addBookmark({
       url: content.url,
       title: content.title,
@@ -52,6 +74,7 @@ async function handleSaveBookmark(tabId: number, userFolder?: string) {
       tags: aiResult.tags,
       category: userFolder || aiResult.category,
       embedding: aiResult.embedding,
+      highlights: highlight ? [highlight] : []
     });
 
     return { success: true };

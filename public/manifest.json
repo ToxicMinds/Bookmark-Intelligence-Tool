@@ -3,7 +3,7 @@
   "name": "Bookmark Intelligence Tool",
   "version": "0.1.0",
   "description": "Turn bookmarks into a searchable, structured knowledge base with AI summaries and semantic search.",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting", "contextMenus", "sidePanel"],
   "action": {
     "default_popup": "index.html",
     "default_icon": {
@@ -11,6 +11,9 @@
       "48": "icon48.png",
       "128": "icon128.png"
     }
+  },
+  "side_panel": {
+    "default_path": "options.html"
   },
   "icons": {
     "16": "icon16.png",

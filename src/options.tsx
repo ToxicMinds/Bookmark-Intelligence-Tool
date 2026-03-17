@@ -13,7 +13,9 @@ import {
   Trash2,
   FolderOpen,
   Filter,
-  Bookmark
+  Bookmark,
+  BookOpen,
+  X
 } from 'lucide-react'
 import { dbService, BookmarkDoc } from './services/db'
 import { semanticSearch } from './services/semanticSearch'
@@ -32,6 +34,11 @@ const App = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [license, setLicense] = useState<LicenseStatus>(licenseService.getLicenseStatus());
+  const [selectedReaderBookmark, setSelectedReaderBookmark] = useState<BookmarkDoc | null>(null);
+
+  const highlightsCount = useMemo(() => {
+    return bookmarks.reduce((acc, b) => acc + (b.highlights?.length || 0), 0);
+  }, [bookmarks]);
 
   useEffect(() => {
     loadBookmarks();
@@ -169,6 +176,37 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-indigo-500/30">
+      {/* Reader Mode Overlay */}
+      {selectedReaderBookmark && (
+        <div className="fixed inset-0 z-[100] bg-zinc-950 overflow-y-auto animate-in fade-in duration-300">
+          <div className="max-w-3xl mx-auto px-6 py-20 relative">
+            <button 
+              onClick={() => setSelectedReaderBookmark(null)}
+              className="fixed top-8 right-8 p-3 bg-zinc-900 border border-zinc-800 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-all shadow-xl"
+            >
+              <X size={24} />
+            </button>
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-indigo-500">{selectedReaderBookmark.category || 'General'}</p>
+                <h1 className="text-5xl font-black leading-tight tracking-tighter">{selectedReaderBookmark.title}</h1>
+                <div className="flex items-center gap-4 text-sm text-zinc-500 border-b border-zinc-900 pb-8">
+                  <a href={selectedReaderBookmark.url} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-400 underline decoration-indigo-500/20">{selectedReaderBookmark.url ? new URL(selectedReaderBookmark.url).hostname : ''}</a>
+                  <span>•</span>
+                  <span>{new Date(selectedReaderBookmark.createdAt).toLocaleDateString()}</span>
+                </div>
+              </div>
+              
+              <div className="prose prose-zinc max-w-none text-xl leading-relaxed text-zinc-300 space-y-6">
+                {selectedReaderBookmark.textContent?.split('\n').filter(p => p.trim()).map((p, i) => (
+                  <p key={i}>{p}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar */}
       <nav className="fixed left-0 top-0 h-full w-20 border-r border-zinc-900 flex flex-col items-center py-8 bg-zinc-950/50 backdrop-blur-xl z-50">
         <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/20 mb-10">
@@ -324,7 +362,7 @@ const App = () => {
               <div className="flex justify-between items-end">
                 <div>
                   <h1 className="text-4xl font-black tracking-tighter mb-2">Knowledge Vault</h1>
-                  <p className="text-zinc-500 font-medium">Your private intelligence layer • {bookmarks.length} memories captured</p>
+                  <p className="text-zinc-500 font-medium">Your private intelligence layer • {bookmarks.length} memories captured • {highlightsCount} highlights</p>
                 </div>
                 {activeView === 'categories' && (
                   <button 
@@ -475,7 +513,14 @@ const App = () => {
                         {folders.map(f => <option key={f} value={f} className="bg-zinc-900 text-zinc-100">{f}</option>)}
                       </select>
                       <div className="flex gap-2">
-                         <button 
+                        <button 
+                          onClick={() => setSelectedReaderBookmark(bookmark)}
+                          className="p-2 text-zinc-600 hover:text-indigo-400 transition-colors opacity-0 group-hover:opacity-100"
+                          title="Open Reader Mode"
+                        >
+                          <BookOpen size={18} />
+                        </button>
+                        <button 
                           onClick={() => handleDelete(bookmark._id)}
                           className="p-2 text-zinc-700 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
                         >
@@ -488,12 +533,25 @@ const App = () => {
                     </div>
 
                     <h3 className="text-xl font-bold leading-tight mb-3 group-hover:text-indigo-400 transition-colors line-clamp-2">
-                  {bookmark.title}
-                </h3>
-                
-                <p className="text-zinc-500 text-sm leading-relaxed mb-6 line-clamp-3 font-medium">
-                  {bookmark.summary}
-                </p>
+                      {bookmark.title}
+                    </h3>
+                    
+                    <p className="text-zinc-500 text-sm leading-relaxed mb-4 line-clamp-3 font-medium">
+                      {bookmark.summary}
+                    </p>
+
+                    {bookmark.highlights && bookmark.highlights.length > 0 && (
+                      <div className="mb-6 space-y-3 border-l-2 border-indigo-500/30 pl-4 py-1">
+                        {bookmark.highlights.slice(0, 2).map((h, i) => (
+                          <div key={i} className="text-xs text-zinc-400 leading-normal line-clamp-2 italic relative">
+                            "{h}"
+                            {i === 0 && bookmark.highlights!.length > 2 && (
+                               <span className="text-[10px] text-indigo-500 ml-1 font-bold">+{bookmark.highlights!.length - 2} more</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                 <div className="flex flex-wrap gap-2 mb-6">
                   {bookmark.tags && bookmark.tags.slice(0, 4).map(tag => (

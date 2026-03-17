@@ -19,6 +19,7 @@ export interface BookmarkDoc {
   tags?: string[];
   category?: string; // This is the folder ID or name
   embedding?: number[];
+  highlights?: string[];
   createdAt: string;
   lastAccessed: string;
 }
