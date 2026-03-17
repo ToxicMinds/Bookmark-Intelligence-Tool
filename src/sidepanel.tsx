@@ -8,16 +8,23 @@ import {
   ExternalLink,
   ChevronRight,
   Zap,
-  LayoutGrid
+  LayoutGrid,
+  PenTool,
+  Copy,
+  Check,
+  Sparkles
 } from 'lucide-react'
 import { dbService, BookmarkDoc } from './services/db'
 import { aiService } from './services/ai'
 import './index.css'
 
 const SidePanel = () => {
-  const [activeTab, setActiveTab] = useState<'chat' | 'vault'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'vault' | 'ghost'>('chat');
   const [query, setQuery] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [ghostDraft, setGhostDraft] = useState('');
+  const [ghostTone, setGhostTone] = useState<'professional' | 'friendly'>('professional');
+  const [isCopying, setIsCopying] = useState(false);
   const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([
     { role: 'assistant', content: "I'm your Brain Vault assistant. Ask me anything about your saved memories or currently open tabs!" }
   ]);
@@ -38,7 +45,49 @@ const SidePanel = () => {
 
   const loadRecent = async () => {
     const all = await dbService.getAllBookmarks();
-    setRecentBookmarks(all.slice(0, 10)); // Just recent ones for sidebar
+    setRecentBookmarks(all.slice(0, 10));
+  };
+
+  const handleGhostWrite = async () => {
+    setIsTyping(true);
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab.id) return;
+
+      const [{result}] = (await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          const title = document.title;
+          const meta = document.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+          const body = document.body.innerText.slice(0, 2000);
+          return { title, meta, body };
+        }
+      })) as any[];
+
+      const context = result as { title: string, meta: string, body: string };
+      
+      // Simple Ghost Writer Synthesis Heuristic
+      const greeting = ghostTone === 'professional' ? "To whom it may concern," : "Hey there!";
+      const intro = ghostTone === 'professional' 
+        ? `I am writing regarding "${context.title}".` 
+        : `Just checked out "${context.title}" and wanted to share some thoughts.`;
+      
+      const summary = `Based on the content: ${context.meta || context.body.slice(0, 150)}...`;
+      
+      const draft = `${greeting}\n\n${intro}\n\n${summary}\n\nBest regards,\n[Your Name]`;
+      
+      setGhostDraft(draft);
+    } catch (err) {
+      setGhostDraft("Failed to generate draft. Ensure I have permission to read this page.");
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(ghostDraft);
+    setIsCopying(true);
+    setTimeout(() => setIsCopying(false), 2000);
   };
 
   const handleChat = async () => {
@@ -50,10 +99,7 @@ const SidePanel = () => {
     setIsTyping(true);
 
     try {
-      // 1. Get all open tabs
       const tabs = await chrome.tabs.query({ currentWindow: true });
-      
-      // 2. Sample content from tabs (Simplified for performance)
       const tabContexts = await Promise.all(tabs.map(async (tab: chrome.tabs.Tab) => {
         if (!tab.id || tab.url?.startsWith('chrome://')) return null;
         try {
@@ -68,14 +114,9 @@ const SidePanel = () => {
       }));
 
       const validContexts = tabContexts.filter((c): c is {title: string | undefined, url: string | undefined, content: string} => c !== null);
-      
-      // 3. Search Vault for related memories
       const vaultResults = await dbService.searchBookmarks(userQuery);
       
-      // 4. Synthesis (Mocking the AI answer for now while using heuristics)
-      // In a full implementation, we'd feed validContexts + vaultResults to a local LLM.
       let response = "";
-      
       const foundInTabs = validContexts.find(c => c.content.toLowerCase().includes(userQuery.toLowerCase()));
       const foundInVault = vaultResults[0];
 
@@ -97,23 +138,32 @@ const SidePanel = () => {
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100 font-sans border-l border-zinc-900 overflow-hidden">
-      <header className="p-6 border-b border-zinc-900 bg-zinc-950/50 backdrop-blur-xl flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <header className="p-4 border-b border-zinc-900 bg-zinc-950/50 backdrop-blur-xl flex items-center justify-between">
+        <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-600/20">
             <Brain size={18} className="text-white" />
           </div>
-          <h1 className="font-black text-lg tracking-tight">Brain Vault</h1>
+          <h1 className="font-black text-sm tracking-tight">Brain Vault</h1>
         </div>
         <div className="flex bg-zinc-900 rounded-lg p-1">
           <button 
             onClick={() => setActiveTab('chat')}
             className={`p-1.5 rounded-md transition-all ${activeTab === 'chat' ? 'bg-zinc-800 text-indigo-400' : 'text-zinc-500'}`}
+            title="Brain Chat"
           >
             <MessageSquare size={16} />
           </button>
           <button 
+            onClick={() => setActiveTab('ghost')}
+            className={`p-1.5 rounded-md transition-all ${activeTab === 'ghost' ? 'bg-zinc-800 text-indigo-400' : 'text-zinc-500'}`}
+            title="Ghost Writer"
+          >
+            <PenTool size={16} />
+          </button>
+          <button 
             onClick={() => setActiveTab('vault')}
             className={`p-1.5 rounded-md transition-all ${activeTab === 'vault' ? 'bg-zinc-800 text-indigo-400' : 'text-zinc-500'}`}
+            title="Vault Browser"
           >
             <LayoutGrid size={16} />
           </button>
@@ -123,7 +173,7 @@ const SidePanel = () => {
       <div className="flex-1 overflow-hidden relative">
         {activeTab === 'chat' ? (
           <div className="flex flex-col h-full">
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
               {messages.map((m, i) => (
                 <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                   <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${
@@ -146,7 +196,7 @@ const SidePanel = () => {
               )}
             </div>
             
-            <div className="p-6 bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent">
+            <div className="p-4 bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent">
               <div className="relative group">
                 <input 
                   type="text"
@@ -154,30 +204,82 @@ const SidePanel = () => {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleChat()}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 pl-12 pr-6 focus:outline-none focus:border-indigo-500/50 transition-all font-medium placeholder:text-zinc-600"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-3 pl-10 pr-4 focus:outline-none focus:border-indigo-500/50 transition-all text-sm font-medium placeholder:text-zinc-700"
                 />
-                <Zap className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-indigo-400 transition-colors" size={18} />
+                <Zap className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-700 group-focus-within:text-indigo-400 transition-colors" size={16} />
               </div>
             </div>
           </div>
+        ) : activeTab === 'ghost' ? (
+          <div className="h-full overflow-y-auto p-4 space-y-6 animate-in fade-in duration-300">
+            <div className="p-6 bg-indigo-600/10 border border-indigo-500/20 rounded-3xl relative overflow-hidden group">
+               <div className="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform duration-700">
+                 <PenTool size={120} />
+               </div>
+               <h3 className="text-lg font-black mb-2 flex items-center gap-2">
+                 <PenTool className="text-indigo-400" size={20} /> Ghost Writer
+               </h3>
+               <p className="text-xs text-zinc-400 leading-relaxed">Synthesize current page context into a drafted response or review.</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex gap-2 p-1 bg-zinc-900 rounded-xl border border-zinc-800">
+                <button 
+                  onClick={() => setGhostTone('professional')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${ghostTone === 'professional' ? 'bg-zinc-800 text-indigo-400' : 'text-zinc-600'}`}
+                >Professional</button>
+                <button 
+                  onClick={() => setGhostTone('friendly')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${ghostTone === 'friendly' ? 'bg-zinc-800 text-indigo-400' : 'text-zinc-600'}`}
+                >Friendly</button>
+              </div>
+
+              <button 
+                onClick={handleGhostWrite}
+                disabled={isTyping}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+              >
+                <Sparkles size={16} />
+                {isTyping ? 'Drafting...' : 'Generate Page Draft'}
+              </button>
+            </div>
+
+            {ghostDraft && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="relative group">
+                  <textarea 
+                    value={ghostDraft}
+                    onChange={(e) => setGhostDraft(e.target.value)}
+                    className="w-full h-64 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-sm text-zinc-300 focus:outline-none focus:border-indigo-500/30 leading-relaxed font-mono"
+                  />
+                  <button 
+                    onClick={copyToClipboard}
+                    className="absolute top-4 right-4 p-2 bg-zinc-950/80 border border-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-all backdrop-blur-md"
+                  >
+                    {isCopying ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
-          <div className="h-full overflow-y-auto p-6 space-y-4 animate-in fade-in duration-300">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-6 flex items-center gap-2">
+          <div className="h-full overflow-y-auto p-4 space-y-4 animate-in fade-in duration-300">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-6 flex items-center gap-2">
               <History size={14} /> Recent Memories
             </h3>
             {recentBookmarks.map(b => (
-              <div key={b._id} className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl hover:border-indigo-500/30 group transition-all cursor-pointer">
+              <div key={b._id} className="p-4 bg-zinc-900/40 border border-zinc-800 rounded-2xl hover:border-indigo-500/30 group transition-all cursor-pointer">
                 <div className="flex justify-between items-start mb-2">
-                   <p className="text-[10px] font-black uppercase text-indigo-500/80">{b.category || 'General'}</p>
+                   <p className="text-[9px] font-black uppercase text-indigo-500/80 tracking-tighter">{b.category || 'General'}</p>
                    <a href={b.url} target="_blank" className="text-zinc-700 hover:text-white transition-colors">
-                     <ExternalLink size={14} />
+                     <ExternalLink size={12} />
                    </a>
                 </div>
-                <h4 className="font-bold text-sm leading-tight group-hover:text-indigo-400 transition-colors line-clamp-1">{b.title}</h4>
+                <h4 className="font-bold text-xs leading-tight group-hover:text-indigo-400 transition-colors line-clamp-2">{b.title}</h4>
               </div>
             ))}
             {recentBookmarks.length === 0 && (
-              <div className="py-20 text-center text-zinc-600 font-bold uppercase text-[10px] tracking-widest border border-dashed border-zinc-900 rounded-2xl">
+              <div className="py-20 text-center text-zinc-700 font-bold uppercase text-[9px] tracking-widest border border-dashed border-zinc-900/50 rounded-2xl">
                 No memories yet
               </div>
             )}
