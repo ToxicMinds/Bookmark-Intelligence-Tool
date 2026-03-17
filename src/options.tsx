@@ -36,6 +36,14 @@ const App = () => {
   useEffect(() => {
     loadBookmarks();
     loadFolders();
+
+    // Subscribe to real-time changes
+    const unsubscribe = dbService.subscribeChanges(() => {
+      loadBookmarks();
+      loadFolders();
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const loadFolders = async () => {

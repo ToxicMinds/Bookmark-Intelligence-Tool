@@ -94,6 +94,20 @@ export class DatabaseService {
     }
   }
 
+  subscribeChanges(callback: () => void) {
+    const changes = this.localDb.changes({
+      since: 'now',
+      live: true,
+      include_docs: true
+    }).on('change', () => {
+      callback();
+    }).on('error', (err) => {
+      console.error('PouchDB changes error:', err);
+    });
+
+    return () => changes.cancel();
+  }
+
   async getFolders(): Promise<string[]> {
     try {
       // Get all bookmarks to see current categories
