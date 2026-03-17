@@ -34,6 +34,17 @@ class LicenseService {
     return true;
   }
 
+  async openCheckout(plan: 'monthly' | 'yearly' | 'lifetime') {
+    // In production, these would be your real LemonSqueezy checkout URLs
+    const checkoutUrls = {
+      monthly: 'https://vault.lemonsqueezy.com/checkout/buy/monthly-plan',
+      yearly: 'https://vault.lemonsqueezy.com/checkout/buy/yearly-plan',
+      lifetime: 'https://vault.lemonsqueezy.com/checkout/buy/lifetime-plan'
+    };
+    
+    window.open(checkoutUrls[plan], '_blank');
+  }
+
   async resetToFree() {
     this.currentTier = 'free';
     localStorage.setItem('vault_license_tier', 'free');

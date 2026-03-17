@@ -1,37 +1,37 @@
-# Bookmark Intelligence Tool
+# 🧠 Brain Vault
 
-Turn your bookmarks into a searchable, structured knowledge base with local-first AI.
+**Your Personal Intelligence Layer for the Web.**
 
-## Features
-- **Instant Save**: Capture current page with one click.
-- **Local AI Analysis**: Automatic generation of summaries and tags using `@xenova/transformers` (running entirely in your browser).
-- **Semantic Search**: Find bookmarks by meaning, not just keywords, using vector embeddings.
-- **E2EE Ready**: Opt-in end-to-end encrypted synchronization via PouchDB.
-- **Privacy First**: All data remains in your local IndexedDB unless you choose to sync.
+![Brain Vault Promo](/promo_tile.png)
 
-## Architecture
-- **Frontend**: React 18, TypeScript, TailwindCSS, Vite.
-- **AI Layer**: ONNX Runtime Web via Xenova/transformers (`all-MiniLM-L6-v2` for embeddings).
-- **Storage**: PouchDB (IndexedDB) with application-level AES-GCM encryption.
-- **Extension**: Manifest V3 compliant.
+Brain Vault is a premium, local-first Chrome extension that turns your scattered bookmarks into a structured, searchable knowledge base. Using state-of-the-art AI (Xenova Transformers) running entirely in your browser, it summarizes, categorizes, and indexes your digital life without ever letting your data leave your device.
 
-## Setup & Development
-1. Clone the repository.
-2. Install dependencies: `npm install`.
-3. Build the extension: `npm run build`.
-4. Open Chrome and navigate to `chrome://extensions/`.
-5. Enable "Developer mode".
-6. Click "Load unpacked" and select the `dist` folder.
+## ✨ Key Features
 
-## Git Integration
-Commits follow the required sequence:
-1. `scaffold`: Core infrastructure.
-2. `core-save-flow`: Background worker and extraction.
-3. `ai-tagging`: Xenova integration.
-4. `semantic-search`: Vector search logic.
-5. `ui-polish`: Premium dashboard and popup components.
+- **Local AI Intel**: Automated 3-bullet summaries and categorization.
+- **Semantic Search**: Find bookmarks by *meaning*, not just keywords (Premium).
+- **End-to-End Encryption**: Opt-in sync that keeps your vault private with AES-GCM (Premium).
+- **Productivity First**: Bulk-open folders into named Tab Groups.
+- **Privacy by Design**: No tracking, no cloud-side processing. Your vault is YOURS.
 
-## Deployment
-1. Build the zip: `npm run build` then zip the `dist` folder.
-2. Upload to Chrome Web Store Developer Dashboard.
-3. Provide the `PRIVACY.md` URL and justify permissions (`storage`, `activeTab`, `scripting`).
+## 🚀 Getting Started
+
+1.  **Direct Download**: Download the latest [v0.1.11 release](https://github.com/ToxicMinds/Bookmark-Intelligence-Tool/raw/main/bookmark-intelligence-tool-v0.1.11.zip).
+2.  **Install**:
+    - Unzip the torrent/zip.
+    - Go to `chrome://extensions`.
+    - Enable "Developer mode".
+    - Click "Load unpacked" and select the `dist` folder.
+3.  **Monetize**: Upgrade to Pro for just $0.49/mo to unlock Semantic Search and E2EE Sync.
+
+## 🛠️ Tech Stack
+
+- **Core**: React 18, TypeScript, Vite.
+- **Database**: PouchDB (Local-First).
+- **Intelligence**: ONNX Runtime + `@xenova/transformers`.
+- **UI**: TailwindCSS + Lucide Icons.
+- **Payments**: LemonSqueezy (Merchant of Record).
+
+## 🔐 Security & Privacy
+
+Your data is stored in your browser's IndexedDB. If you enable Sync, data is encrypted *before* it leaves your machine using AES-GCM 256-bit encryption. Your master password is never stored on any server.

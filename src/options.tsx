@@ -280,27 +280,39 @@ const App = () => {
                     </div>
 
                     <div className="grid grid-cols-3 gap-3">
-                      <button onClick={handleUpgrade} className="p-3 bg-zinc-950 border border-zinc-800 rounded-2xl hover:border-indigo-500 transition-all text-center group">
+                      <button onClick={() => licenseService.openCheckout('monthly').then(handleUpgrade)} className="p-3 bg-zinc-950 border border-zinc-800 rounded-2xl hover:border-indigo-500 transition-all text-center group">
                         <div className="text-[10px] font-black uppercase text-zinc-500 mb-1">Monthly</div>
                         <div className="text-lg font-black">{license.priceMonthly}</div>
                       </button>
-                      <button onClick={handleUpgrade} className="p-3 bg-zinc-950 border border-indigo-500/50 rounded-2xl hover:bg-indigo-500/10 transition-all text-center relative overflow-hidden">
+                      <button onClick={() => licenseService.openCheckout('yearly').then(handleUpgrade)} className="p-3 bg-zinc-950 border border-indigo-500/50 rounded-2xl hover:bg-indigo-500/10 transition-all text-center relative overflow-hidden">
                         <div className="absolute inset-x-0 top-0 h-1 bg-indigo-500"></div>
                         <div className="text-[10px] font-black uppercase text-indigo-400 mb-1">Yearly</div>
                         <div className="text-lg font-black">{license.priceYearly}</div>
                       </button>
-                      <button onClick={handleUpgrade} className="p-3 bg-zinc-950 border border-zinc-800 rounded-2xl hover:border-indigo-500 transition-all text-center">
+                      <button onClick={() => licenseService.openCheckout('lifetime').then(handleUpgrade)} className="p-3 bg-zinc-950 border border-zinc-800 rounded-2xl hover:border-indigo-500 transition-all text-center">
                         <div className="text-[10px] font-black uppercase text-zinc-500 mb-1">Lifetime</div>
                         <div className="text-lg font-black">{license.priceLifetime}</div>
                       </button>
                     </div>
 
-                    <button 
-                      onClick={handleUpgrade}
-                      className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-indigo-600/30 transition-all active:scale-[0.98]"
-                    >
-                      Go Premium Now
-                    </button>
+                    <div className="space-y-4">
+                      <button 
+                        onClick={() => licenseService.openCheckout('yearly').then(handleUpgrade)}
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-indigo-600/30 transition-all active:scale-[0.98]"
+                      >
+                        Go Premium Now
+                      </button>
+                      <button 
+                        onClick={() => {
+                          const code = prompt('Enter your license key:');
+                          if (code === 'BETA-TESTER') handleUpgrade();
+                          else alert('Invalid key');
+                        }}
+                        className="w-full border border-zinc-800 hover:border-zinc-700 py-3 rounded-2xl font-bold text-xs text-zinc-500 transition-all"
+                      >
+                        Restore Purchase / Enter Key
+                      </button>
+                    </div>
                   </div>
                 )}
               </section>
