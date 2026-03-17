@@ -12,10 +12,12 @@ import {
   ShieldCheck,
   Trash2,
   FolderOpen,
-  Filter
+  Filter,
+  Bookmark
 } from 'lucide-react'
 import { dbService, BookmarkDoc } from './services/db'
 import { semanticSearch } from './services/semanticSearch'
+import { licenseService, LicenseStatus } from './services/license'
 import './index.css'
 
 const App = () => {
@@ -29,6 +31,7 @@ const App = () => {
   const [folders, setFolders] = useState<string[]>(['General']);
   const [newFolderName, setNewFolderName] = useState('');
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [license, setLicense] = useState<LicenseStatus>(licenseService.getLicenseStatus());
 
   useEffect(() => {
     loadBookmarks();
@@ -73,14 +76,24 @@ const App = () => {
     }
   };
 
+  const handleUpgrade = async () => {
+    await licenseService.upgradeToPremium();
+    setLicense(licenseService.getLicenseStatus());
+  };
+
   const handleSearch = async () => {
     setIsLoading(true);
     try {
       if (!searchQuery.trim()) {
         await loadBookmarks();
-      } else if (isSemantic) {
+      } else if (isSemantic && license.tier === 'premium') {
         const results = await semanticSearch.search(searchQuery);
         setBookmarks(results.map(r => r.bookmark));
+      } else if (isSemantic && license.tier === 'free') {
+        alert('Semantic Search is a Premium feature. Upgrade to unlock!');
+        setIsSemantic(false);
+        const results = await dbService.searchBookmarks(searchQuery);
+        setBookmarks(results);
       } else {
         const results = await dbService.searchBookmarks(searchQuery);
         setBookmarks(results);
@@ -99,6 +112,28 @@ const App = () => {
       setBookmarks(prev => prev.filter(b => b._id !== id));
     } catch (err) {
       console.error('Failed to delete:', err);
+    }
+  };
+
+  const handleOpenFolderTabs = async (folderName: string) => {
+    const folderBookmarks = bookmarks.filter(b => (b.category || 'General') === folderName);
+    if (folderBookmarks.length === 0) return;
+
+    try {
+      const tabIds = await Promise.all(
+        folderBookmarks.map(b => chrome.tabs.create({ url: b.url, active: false }).then(t => t.id))
+      );
+      
+      const validTabIds = tabIds.filter(id => id !== undefined) as number[];
+      if (validTabIds.length > 0) {
+        const groupId = await chrome.tabs.group({ tabIds: validTabIds as [number, ...number[]] });
+        await chrome.tabGroups.update(groupId, { 
+          title: folderName,
+          color: 'blue'
+        });
+      }
+    } catch (err) {
+      console.error('Failed to open folder tabs:', err);
     }
   };
 
@@ -170,35 +205,96 @@ const App = () => {
 
       <main className="pl-20 max-w-7xl mx-auto px-12 py-12">
         {activeView === 'settings' ? (
-          <div className="max-w-2xl animate-in fade-in slide-in-from-bottom-4">
+          <div className="max-w-4xl animate-in fade-in slide-in-from-bottom-4">
             <h1 className="text-4xl font-black tracking-tighter mb-8">Vault Settings</h1>
-            <div className="space-y-8">
-              <section className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-3xl">
-                <div className="flex items-center gap-3 mb-6">
-                  <ShieldCheck className="text-emerald-500" size={24} />
-                  <h2 className="text-xl font-bold italic underline decoration-emerald-500/20">Privacy & Encryption</h2>
-                </div>
-                <p className="text-zinc-400 mb-6 leading-relaxed">
-                  Your vault is currently **Local-Only**. This means your bookmarks, summaries, and AI embeddings exist exclusively on this device's disk.
-                </p>
-                <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl text-emerald-400/80 text-sm font-medium">
-                  E2EE Synchronization (PouchDB + CouchDB) is ready but requires a remote endpoint for cross-device sync.
-                </div>
-              </section>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="space-y-8">
+                <section className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-3xl">
+                  <div className="flex items-center gap-3 mb-6">
+                    <ShieldCheck className="text-emerald-500" size={24} />
+                    <h2 className="text-xl font-bold italic underline decoration-emerald-500/20">Privacy & Encryption</h2>
+                  </div>
+                  <p className="text-zinc-400 mb-6 leading-relaxed">
+                    Your vault is currently **Local-Only**. This means your bookmarks, summaries, and AI embeddings exist exclusively on this device's disk.
+                  </p>
+                  <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl text-emerald-400/80 text-sm font-medium">
+                    E2EE Synchronization (PouchDB + CouchDB) is available for Premium users.
+                  </div>
+                </section>
 
-              <section className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-3xl opacity-50 cursor-not-allowed">
-                <h2 className="text-xl font-bold mb-4">Sync Configuration</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2">Remote CouchDB URL</label>
-                    <input disabled type="text" placeholder="https://your-couchdb-instance.com" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none" />
+                <section className={`p-8 bg-zinc-900/30 border border-zinc-800 rounded-3xl ${license.tier === 'free' ? 'opacity-50 grayscale' : ''}`}>
+                  <h2 className="text-xl font-bold mb-4">Sync Configuration</h2>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2">Remote CouchDB URL</label>
+                      <input disabled={license.tier === 'free'} type="text" placeholder="https://your-couchdb-instance.com" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2">E2EE Master Password</label>
+                      <input disabled={license.tier === 'free'} type="password" placeholder="••••••••••••" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none" />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2">E2EE Master Password</label>
-                    <input disabled type="password" placeholder="••••••••••••" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none" />
-                  </div>
+                  {license.tier === 'free' && <p className="text-[10px] text-indigo-400 mt-4 italic font-bold">Requires Premium Subscription</p>}
+                </section>
+              </div>
+
+              <section className="p-8 bg-gradient-to-br from-indigo-600/20 to-zinc-900/50 border border-indigo-500/30 rounded-3xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4">
+                  <div className="bg-indigo-600 text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full shadow-lg shadow-indigo-600/40">PRO</div>
                 </div>
-                <p className="text-[10px] text-zinc-600 mt-4 italic">* Multi-device sync coming in next release.</p>
+                
+                <h2 className="text-2xl font-black mb-6">Unlock Full Intelligence</h2>
+                
+                {license.tier === 'premium' ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-3">
+                      <ShieldCheck className="text-emerald-500" />
+                      <p className="font-bold text-emerald-400">Premium Active</p>
+                    </div>
+                    <button onClick={() => licenseService.resetToFree().then(() => setLicense(licenseService.getLicenseStatus()))} className="text-xs text-zinc-600 hover:text-zinc-400 underline">Manage Subscription</button>
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><Bookmark size={12}/></div>
+                        <p className="text-sm font-medium">Semantic AI Search (Conceptual Matching)</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><ShieldCheck size={12}/></div>
+                        <p className="text-sm font-medium">E2EE Cloud Sync (PouchDB + CouchDB)</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><Brain size={12}/></div>
+                        <p className="text-sm font-medium">Advanced AI Summaries & Insights</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <button onClick={handleUpgrade} className="p-3 bg-zinc-950 border border-zinc-800 rounded-2xl hover:border-indigo-500 transition-all text-center group">
+                        <div className="text-[10px] font-black uppercase text-zinc-500 mb-1">Monthly</div>
+                        <div className="text-lg font-black">{license.priceMonthly}</div>
+                      </button>
+                      <button onClick={handleUpgrade} className="p-3 bg-zinc-950 border border-indigo-500/50 rounded-2xl hover:bg-indigo-500/10 transition-all text-center relative overflow-hidden">
+                        <div className="absolute inset-x-0 top-0 h-1 bg-indigo-500"></div>
+                        <div className="text-[10px] font-black uppercase text-indigo-400 mb-1">Yearly</div>
+                        <div className="text-lg font-black">{license.priceYearly}</div>
+                      </button>
+                      <button onClick={handleUpgrade} className="p-3 bg-zinc-950 border border-zinc-800 rounded-2xl hover:border-indigo-500 transition-all text-center">
+                        <div className="text-[10px] font-black uppercase text-zinc-500 mb-1">Lifetime</div>
+                        <div className="text-lg font-black">{license.priceLifetime}</div>
+                      </button>
+                    </div>
+
+                    <button 
+                      onClick={handleUpgrade}
+                      className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-indigo-600/30 transition-all active:scale-[0.98]"
+                    >
+                      Go Premium Now
+                    </button>
+                  </div>
+                )}
               </section>
             </div>
           </div>
@@ -273,12 +369,18 @@ const App = () => {
             {activeView === 'categories' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12 animate-in fade-in zoom-in duration-300">
                 {folderStats.map(([cat, count]) => (
-                  <div key={cat} className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-3xl hover:border-indigo-500/40 transition-all group cursor-pointer">
+                  <div key={cat} className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-3xl hover:border-indigo-500/40 transition-all group cursor-pointer relative overflow-hidden">
                     <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400 mb-6 group-hover:scale-110 transition-transform">
                       <FolderOpen size={24} />
                     </div>
                     <h3 className="text-xl font-bold mb-1">{cat}</h3>
-                    <p className="text-zinc-500 font-medium text-sm">{count} items</p>
+                    <p className="text-zinc-500 font-medium text-sm mb-6">{count} items</p>
+                    <button 
+                      onClick={() => handleOpenFolderTabs(cat)}
+                      className="w-full py-2 bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-widest rounded-xl border border-indigo-500/20 hover:bg-indigo-500 hover:text-white transition-all transform translate-y-20 group-hover:translate-y-0"
+                    >
+                      Open All in Tabs
+                    </button>
                   </div>
                 ))}
               </div>

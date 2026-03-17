@@ -44,6 +44,9 @@ export class DatabaseService {
         }),
         this.localDb.createIndex({
           index: { fields: ['type'] }
+        }),
+        this.localDb.createIndex({
+          index: { fields: ['url'] }
         })
       ]);
       console.log('Database indices initialized');
@@ -61,6 +64,34 @@ export class DatabaseService {
       lastAccessed: new Date().toISOString(),
     };
     return this.localDb.put(doc);
+  }
+
+  async getBookmarkByUrl(url: string): Promise<BookmarkDoc | null> {
+    try {
+      const result = await this.localDb.find({
+        selector: { type: 'bookmark', url: url },
+        limit: 1
+      } as any);
+      return (result.docs[0] as unknown as BookmarkDoc) || null;
+    } catch (err) {
+      console.error('Failed to get bookmark by URL:', err);
+      return null;
+    }
+  }
+
+  async updateBookmark(id: string, updates: Partial<BookmarkDoc>) {
+    try {
+      const doc = await this.localDb.get(id);
+      const updatedDoc = {
+        ...doc,
+        ...updates,
+        lastAccessed: new Date().toISOString()
+      };
+      return this.localDb.put(updatedDoc);
+    } catch (err) {
+      console.error('Failed to update bookmark:', err);
+      throw err;
+    }
   }
 
   async getFolders(): Promise<string[]> {

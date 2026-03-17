@@ -6,18 +6,38 @@ import './index.css'
 
 const App = () => {
   const [activeTab, setActiveTab] = useState<'save' | 'search'>('save');
-  const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error' | 'exists'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<BookmarkDoc[]>([]);
   const [recentBookmarks, setRecentBookmarks] = useState<BookmarkDoc[]>([]);
   const [folders, setFolders] = useState<string[]>(['General']);
   const [selectedFolder, setSelectedFolder] = useState('General');
+  const [existingBookmark, setExistingBookmark] = useState<BookmarkDoc | null>(null);
+  const [isCreatingNewFolder, setIsCreatingNewFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
 
   useEffect(() => {
+    checkDuplicate();
     loadRecent();
     loadFolders();
   }, []);
+
+  const checkDuplicate = async () => {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.url) {
+        const doc = await dbService.getBookmarkByUrl(tab.url);
+        if (doc) {
+          setExistingBookmark(doc);
+          setStatus('exists');
+          setSelectedFolder(doc.category || 'General');
+        }
+      }
+    } catch (err) {
+      console.error('Duplicate check failed:', err);
+    }
+  };
 
   const loadFolders = async () => {
     try {
@@ -37,7 +57,27 @@ const App = () => {
     }
   };
 
-  const handleSave = async () => {
+  const handleCreateFolderAndSave = async () => {
+    if (!newFolderName.trim()) return;
+    try {
+      await dbService.createFolder(newFolderName);
+      const updatedFolders = await dbService.getFolders();
+      setFolders(updatedFolders);
+      setSelectedFolder(newFolderName);
+      setIsCreatingNewFolder(false);
+      // If we were already in "exists" state, update it
+      if (status === 'exists' && existingBookmark) {
+        await dbService.updateBookmark(existingBookmark._id, { category: newFolderName });
+        setStatus('success');
+      } else {
+        await handleSave(newFolderName);
+      }
+    } catch (err) {
+      setError('Failed to create folder');
+    }
+  };
+
+  const handleSave = async (folderOverride?: string) => {
     setStatus('saving');
     setError(null);
 
@@ -48,7 +88,7 @@ const App = () => {
       const response = await chrome.runtime.sendMessage({
         action: 'save_bookmark',
         tabId: tab.id,
-        folder: selectedFolder
+        folder: folderOverride || selectedFolder
       });
 
       if (response && response.success) {
@@ -62,6 +102,24 @@ const App = () => {
       console.error('Save error:', err);
       setStatus('error');
       setError((err as Error).message);
+    }
+  };
+
+  const handleUpdateFolder = async (folderName: string) => {
+    if (folderName === '__new__') {
+      setIsCreatingNewFolder(true);
+      return;
+    }
+    
+    setSelectedFolder(folderName);
+    if (status === 'exists' && existingBookmark) {
+      try {
+        await dbService.updateBookmark(existingBookmark._id, { category: folderName });
+        setStatus('success');
+        loadRecent();
+      } catch (err) {
+        setError('Failed to update folder');
+      }
     }
   };
 
@@ -109,35 +167,70 @@ const App = () => {
         {activeTab === 'save' ? (
           <div className="space-y-6">
             <div className="min-h-[140px] flex flex-col justify-center">
-              {status === 'idle' && (
+              {(status === 'idle' || status === 'exists') && (
                 <div className="animate-in fade-in slide-in-from-bottom-2">
                   <p className="text-sm text-zinc-400 mb-4 leading-relaxed">
-                    Capture this page into your private, AI-powered knowledge base.
+                    {status === 'exists' 
+                      ? "This page is already in your Knowledge Vault."
+                      : "Capture this page into your private, AI-powered knowledge base."}
                   </p>
                   
                   <div className="mb-6">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-2">Target Folder</label>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-2">
+                      {status === 'exists' ? "Current Folder" : "Target Folder"}
+                    </label>
                     <div className="relative">
-                      <select 
-                        value={selectedFolder}
-                        onChange={(e) => setSelectedFolder(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs font-bold text-zinc-300 focus:outline-none appearance-none cursor-pointer"
-                      >
-                        {folders.map(f => <option key={f} value={f}>{f}</option>)}
-                      </select>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-600">
-                        <ArrowRight size={14} className="rotate-90" />
-                      </div>
+                      {isCreatingNewFolder ? (
+                        <div className="flex gap-2 animate-in fade-in slide-in-from-top-1">
+                          <input 
+                            autoFocus
+                            type="text"
+                            placeholder="Folder Name"
+                            value={newFolderName}
+                            onChange={(e) => setNewFolderName(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleCreateFolderAndSave()}
+                            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-xs font-bold text-zinc-300 focus:outline-none focus:border-indigo-500/50"
+                          />
+                          <button 
+                            onClick={handleCreateFolderAndSave}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg transition-colors"
+                          >
+                            <ArrowRight size={14} />
+                          </button>
+                          <button 
+                            onClick={() => setIsCreatingNewFolder(false)}
+                            className="text-zinc-600 text-[10px] font-black uppercase hover:text-zinc-400"
+                          >
+                            X
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <select 
+                            value={selectedFolder}
+                            onChange={(e) => handleUpdateFolder(e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs font-bold text-zinc-300 focus:outline-none appearance-none cursor-pointer"
+                          >
+                            {folders.map(f => <option key={f} value={f}>{f}</option>)}
+                            <option value="__new__" className="text-indigo-400">+ New Folder...</option>
+                          </select>
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-600">
+                            <ArrowRight size={14} className="rotate-90" />
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  <button 
-                    onClick={handleSave}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white py-3.5 rounded-xl font-bold shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 group"
-                  >
-                    Analyze & Save Page
-                    <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                  </button>
+                  {status === 'idle' && (
+                    <button 
+                      onClick={() => handleSave()}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white py-3.5 rounded-xl font-bold shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 group"
+                    >
+                      Analyze & Save Page
+                      <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                    </button>
+                  )}
                 </div>
               )}
 
