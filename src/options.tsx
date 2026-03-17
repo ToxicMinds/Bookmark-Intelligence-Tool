@@ -89,7 +89,7 @@ const App = () => {
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-indigo-500 transition-colors" size={20} />
               <input 
                 type="text" 
-                placeholder={isSemantic ? "Search concepts and meanings..." : "Search keywords, tags, titles..."}
+                placeholder={isSemantic ? "Search concepts and meanings (AI powered)..." : "Search titles, tags, and text content..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -101,11 +101,14 @@ const App = () => {
               className={`flex items-center gap-3 px-6 py-4 rounded-2xl border font-bold transition-all ${
                 isSemantic 
                   ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" 
-                  : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                  : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800/50"
               }`}
             >
               <Brain size={20} />
-              {isSemantic ? "Semantic ON" : "Keyword Only"}
+              <div className="text-left leading-none">
+                <div className="text-[10px] uppercase opacity-60 mb-1">{isSemantic ? "Semantic Mode" : "Classic Mode"}</div>
+                <div className="text-sm">{isSemantic ? "AI Search" : "Keyword Search"}</div>
+              </div>
             </button>
           </div>
         </header>

@@ -30,6 +30,20 @@ export class DatabaseService {
   constructor() {
     this.localDb = new PouchDBConstructor('bookmarks_db');
     this.encryption = new EncryptionService();
+    this.initIndices();
+  }
+
+  private async initIndices() {
+    try {
+      await this.localDb.createIndex({
+        index: {
+          fields: ['type', 'createdAt']
+        }
+      });
+      console.log('Database indices initialized');
+    } catch (err) {
+      console.error('Failed to initialize indices:', err);
+    }
   }
 
   async addBookmark(bookmark: Omit<BookmarkDoc, '_id' | 'type' | 'createdAt' | 'lastAccessed'>) {
