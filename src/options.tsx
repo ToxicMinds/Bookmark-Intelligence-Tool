@@ -35,6 +35,7 @@ const App = () => {
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [license, setLicense] = useState<LicenseStatus>(licenseService.getLicenseStatus());
   const [selectedReaderBookmark, setSelectedReaderBookmark] = useState<BookmarkDoc | null>(null);
+  const [relatedBookmarks, setRelatedBookmarks] = useState<BookmarkDoc[]>([]);
 
   const highlightsCount = useMemo(() => {
     return bookmarks.reduce((acc, b) => acc + (b.highlights?.length || 0), 0);
@@ -44,7 +45,6 @@ const App = () => {
     loadBookmarks();
     loadFolders();
 
-    // Subscribe to real-time changes
     const unsubscribe = dbService.subscribeChanges(() => {
       loadBookmarks();
       loadFolders();
@@ -52,6 +52,14 @@ const App = () => {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (selectedReaderBookmark) {
+      dbService.getRelatedBookmarks(selectedReaderBookmark).then(setRelatedBookmarks);
+    } else {
+      setRelatedBookmarks([]);
+    }
+  }, [selectedReaderBookmark]);
 
   const loadFolders = async () => {
     const data = await dbService.getFolders();
@@ -186,7 +194,7 @@ const App = () => {
             >
               <X size={24} />
             </button>
-            <div className="space-y-8">
+            <div className="space-y-12">
               <div className="space-y-4">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-indigo-500">{selectedReaderBookmark.category || 'General'}</p>
                 <h1 className="text-5xl font-black leading-tight tracking-tighter">{selectedReaderBookmark.title}</h1>
@@ -202,6 +210,27 @@ const App = () => {
                   <p key={i}>{p}</p>
                 ))}
               </div>
+
+              {relatedBookmarks.length > 0 && (
+                <div className="pt-12 mt-12 border-t border-zinc-900">
+                  <div className="flex items-center gap-3 mb-8">
+                    <Brain className="text-indigo-500" size={20} />
+                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-zinc-500">Related Memories</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {relatedBookmarks.map(b => (
+                      <button 
+                        key={b._id}
+                        onClick={() => setSelectedReaderBookmark(b)}
+                        className="text-left p-6 bg-zinc-900/50 border border-zinc-800 rounded-2xl hover:border-indigo-500/30 transition-all group"
+                      >
+                        <p className="text-[10px] font-black uppercase text-indigo-500 mb-2">{b.category || 'General'}</p>
+                        <h4 className="font-bold group-hover:text-indigo-400 transition-colors line-clamp-1">{b.title}</h4>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -186,6 +186,36 @@ export class DatabaseService {
       (b.tags && b.tags.some(t => t.toLowerCase().includes(lowerQuery)))
     );
   }
+
+  async getRelatedBookmarks(bookmark: BookmarkDoc, limit = 4): Promise<BookmarkDoc[]> {
+    if (!bookmark.embedding) return [];
+    
+    const all = await this.getAllBookmarks();
+    const withEmbeddings = all.filter(b => b._id !== bookmark._id && b.embedding);
+    
+    const similarities = withEmbeddings.map(other => ({
+      doc: other,
+      score: this.cosineSimilarity(bookmark.embedding!, other.embedding!)
+    }));
+
+    return similarities
+      .filter(s => s.score > 0.7) // Only show reasonably related items
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(s => s.doc);
+  }
+
+  private cosineSimilarity(vecA: number[], vecB: number[]): number {
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    for (let i = 0; i < vecA.length; i++) {
+      dotProduct += vecA[i] * vecB[i];
+      normA += vecA[i] * vecA[i];
+      normB += vecB[i] * vecB[i];
+    }
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+  }
 }
 
 export const dbService = new DatabaseService();
