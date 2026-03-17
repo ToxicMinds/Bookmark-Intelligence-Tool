@@ -65,6 +65,8 @@ async function handleSaveBookmark(tabId: number, userFolder?: string, highlight?
           highlights: [...highlights, highlight]
         });
       }
+      // Broadcast update
+      chrome.runtime.sendMessage({ action: 'vault_updated' }).catch(() => {});
       return { success: true, updated: true };
     }
 
@@ -80,6 +82,9 @@ async function handleSaveBookmark(tabId: number, userFolder?: string, highlight?
       embedding: aiResult.embedding,
       highlights: highlight ? [highlight] : []
     });
+
+    // Broadcast update to all open pages (Options, Sidebar, etc.)
+    chrome.runtime.sendMessage({ action: 'vault_updated' }).catch(() => {});
 
     return { success: true };
   } catch (error) {

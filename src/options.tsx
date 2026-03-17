@@ -55,11 +55,22 @@ const App = () => {
     syncService.getSyncConfig().then(setSyncConfig);
 
     const unsubscribe = dbService.subscribeChanges(() => {
-      loadBookmarks();
-      loadFolders();
+      loadBookmarks(true);
+      loadFolders(true);
     });
 
-    return () => unsubscribe();
+    const messageListener = (request: any) => {
+      if (request.action === 'vault_updated') {
+        loadBookmarks(true);
+        loadFolders(true);
+      }
+    };
+    chrome.runtime.onMessage.addListener(messageListener);
+
+    return () => {
+      unsubscribe();
+      chrome.runtime.onMessage.removeListener(messageListener);
+    };
   }, []);
 
   useEffect(() => {
@@ -70,20 +81,22 @@ const App = () => {
     }
   }, [selectedReaderBookmark]);
 
-  const loadFolders = async () => {
+  const loadFolders = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     const data = await dbService.getFolders();
     setFolders(data);
+    if (!silent) setIsLoading(false);
   };
 
-  const loadBookmarks = async () => {
-    setIsLoading(true);
+  const loadBookmarks = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const data = await dbService.getAllBookmarks();
       setBookmarks(data);
     } catch (err) {
       console.error('Failed to load bookmarks:', err);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
