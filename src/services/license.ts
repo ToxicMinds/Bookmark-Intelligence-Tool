@@ -18,7 +18,7 @@ class LicenseService {
   getLicenseStatus(): LicenseStatus {
     return {
       tier: this.currentTier,
-      priceMonthly: '$0.49',
+      priceMonthly: '$0.89',
       priceYearly: '$4.99',
       priceLifetime: '$7.99'
     };

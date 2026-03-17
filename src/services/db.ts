@@ -232,6 +232,42 @@ export class DatabaseService {
     }
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
+
+  private syncHandler: any = null;
+
+  async syncWithRemote(url: string, user?: string, pass?: string) {
+    if (this.syncHandler) {
+      this.syncHandler.cancel();
+    }
+
+    const remoteUrl = user && pass 
+      ? url.replace('://', `://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@`)
+      : url;
+
+    const remoteDb = new PouchDBConstructor(remoteUrl);
+
+    this.syncHandler = this.localDb.sync(remoteDb, {
+      live: true,
+      retry: true
+    }).on('change', (info) => {
+      console.log('Sync change:', info);
+    }).on('paused', (err) => {
+      console.log('Sync paused', err);
+    }).on('active', () => {
+      console.log('Sync resumed');
+    }).on('error', (err) => {
+      console.error('Sync error:', err);
+    });
+
+    return this.syncHandler;
+  }
+
+  async cancelSync() {
+    if (this.syncHandler) {
+      this.syncHandler.cancel();
+      this.syncHandler = null;
+    }
+  }
 }
 
 export const dbService = new DatabaseService();

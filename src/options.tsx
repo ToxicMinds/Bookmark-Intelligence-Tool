@@ -40,6 +40,7 @@ const App = () => {
   const [relatedBookmarks, setRelatedBookmarks] = useState<BookmarkDoc[]>([]);
 
   // Sync State
+  const [syncConfig, setSyncConfig] = useState<{ mode: 'decentralized' | 'traditional' | 'none', traditional?: { url: string, user: string, pass: string } }>({ mode: 'none' });
   const [masterPassword, setMasterPassword] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
@@ -51,6 +52,7 @@ const App = () => {
   useEffect(() => {
     loadBookmarks();
     loadFolders();
+    syncService.getSyncConfig().then(setSyncConfig);
 
     const unsubscribe = dbService.subscribeChanges(() => {
       loadBookmarks();
@@ -201,6 +203,13 @@ const App = () => {
     }
   };
 
+  const handleUpdateSyncConfig = async (updates: any) => {
+    const newConfig = { ...syncConfig, ...updates };
+    setSyncConfig(newConfig);
+    await syncService.setSyncConfig(newConfig);
+    setSyncStatus(newConfig.mode === 'traditional' ? 'Traditional Sync Active' : 'Mode Switched');
+  };
+
   const folderStats = useMemo(() => {
     const stats: Record<string, number> = {};
     folders.forEach(f => stats[f] = 0);
@@ -327,48 +336,91 @@ const App = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="space-y-8">
                 <section className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-3xl">
-                  <div className="flex items-center gap-3 mb-6">
-                    <ShieldCheck className="text-emerald-500" size={24} />
-                    <h2 className="text-xl font-bold italic underline decoration-emerald-500/20">Sync & Privacy (BYOS)</h2>
-                  </div>
-                  <p className="text-zinc-400 mb-6 leading-relaxed">
-                    Your vault is currently **Local-First**. Enable Decentralized Sync (BYOS) to mirror your memories to your own Google Drive.
-                  </p>
-                  
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2">E2EE Master Password</label>
-                      <div className="flex gap-2">
-                        <input 
-                          type="password" 
-                          placeholder="••••••••••••" 
-                          value={masterPassword}
-                          onChange={(e) => setMasterPassword(e.target.value)}
-                          className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50" 
-                        />
-                        <button 
-                          onClick={handleSetMasterPassword}
-                          className="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-xs font-bold transition-all"
-                        >Set</button>
-                      </div>
-                      <p className="text-[10px] text-zinc-600 mt-2">Required to encrypt data before syncing.</p>
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-3">
+                      <ShieldCheck className="text-emerald-500" size={24} />
+                      <h2 className="text-xl font-bold italic underline decoration-emerald-500/20">Sync Architecture</h2>
                     </div>
-
-                    <div className="pt-4 border-t border-zinc-800 space-y-4">
-                      <h3 className="text-sm font-bold flex items-center gap-2">
-                        <Cloud className="text-indigo-400" size={16} /> Google Drive Backup
-                      </h3>
+                    <div className="flex bg-zinc-950 p-1 rounded-xl border border-zinc-800">
                       <button 
-                        disabled={license.tier === 'free'}
-                        onClick={handleSyncPush}
-                        className="w-full bg-indigo-600/10 border border-indigo-500/20 hover:bg-indigo-500/20 text-indigo-400 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-30 disabled:grayscale"
-                      >
-                        {isSyncing ? 'Syncing...' : 'Sync to My Google Drive'}
-                      </button>
-                      {license.tier === 'free' && <p className="text-[10px] text-indigo-400 italic">Cloud Sync requires Premium</p>}
-                      {syncStatus && <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest text-center mt-2">{syncStatus}</p>}
+                        onClick={() => handleUpdateSyncConfig({ mode: 'traditional' })}
+                        className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all ${syncConfig.mode === 'traditional' ? 'bg-indigo-600 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      >Traditional</button>
+                      <button 
+                        onClick={() => handleUpdateSyncConfig({ mode: 'decentralized' })}
+                        className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all ${syncConfig.mode === 'decentralized' ? 'bg-indigo-600 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      >Decentralized</button>
                     </div>
                   </div>
+
+                  {syncConfig.mode === 'decentralized' ? (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+                      <p className="text-zinc-400 text-sm leading-relaxed">
+                        **Holy Grail Sync**: Data is encrypted locally and mirrored to your private Google Drive App Data folder. Zero-server reliance.
+                      </p>
+                      <div>
+                        <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2">E2EE Master Password</label>
+                        <div className="flex gap-2">
+                          <input 
+                            type="password" 
+                            placeholder="••••••••••••" 
+                            value={masterPassword}
+                            onChange={(e) => setMasterPassword(e.target.value)}
+                            className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50" 
+                          />
+                          <button 
+                            onClick={handleSetMasterPassword}
+                            className="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-xs font-bold transition-all"
+                          >Set</button>
+                        </div>
+                      </div>
+                      <div className="pt-4 border-t border-zinc-800">
+                        <button 
+                          disabled={license.tier === 'free'}
+                          onClick={handleSyncPush}
+                          className="w-full bg-indigo-600/10 border border-indigo-500/20 hover:bg-indigo-500/20 text-indigo-400 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-30"
+                        >
+                          {isSyncing ? 'Syncing...' : 'Push to My Google Drive'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-left-4">
+                      <p className="text-zinc-400 text-sm leading-relaxed">
+                        **Traditional Cloud Vault**: Real-time sync using a standard CouchDB server. Best for ease of use across many devices.
+                      </p>
+                      <div className="space-y-4">
+                        <input 
+                          type="text" 
+                          placeholder="CouchDB URL (e.g. https://xyz.cloudant.com/vault)" 
+                          value={syncConfig.traditional?.url || ''}
+                          onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, url: e.target.value } })}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none" 
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <input 
+                            type="text" 
+                            placeholder="Username" 
+                            value={syncConfig.traditional?.user || ''}
+                            onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, user: e.target.value } })}
+                            className="bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none" 
+                          />
+                          <input 
+                            type="password" 
+                            placeholder="Password" 
+                            value={syncConfig.traditional?.pass || ''}
+                            onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, pass: e.target.value } })}
+                            className="bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none" 
+                          />
+                        </div>
+                        <button 
+                          onClick={() => handleUpdateSyncConfig({ mode: 'traditional' })}
+                          className="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
+                        >Connect & Sync</button>
+                      </div>
+                    </div>
+                  )}
+                  {syncStatus && <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest text-center mt-6">{syncStatus}</p>}
                 </section>
 
               <section className="p-8 bg-gradient-to-br from-indigo-600/20 to-zinc-900/50 border border-indigo-500/30 rounded-3xl relative overflow-hidden">
@@ -395,7 +447,7 @@ const App = () => {
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><Cloud size={12}/></div>
-                        <p className="text-sm font-medium">Decentralized BYOS Sync (GDrive)</p>
+                        <p className="text-sm font-medium">Hybrid Sync (Cloud Vault + BYOS GDrive)</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><Brain size={12}/></div>

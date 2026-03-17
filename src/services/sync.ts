@@ -136,6 +136,39 @@ export class SyncService {
       await dbService.upsertBookmark(remote);
     }
   }
+
+  /**
+   * Hybrid Sync Management
+   */
+  async getSyncConfig(): Promise<{ mode: 'decentralized' | 'traditional' | 'none', traditional?: { url: string, user: string, pass: string } }> {
+    return new Promise((resolve) => {
+      // @ts-ignore
+      chrome.storage.local.get(['sync_config'], (result: any) => {
+        resolve(result?.sync_config || { mode: 'none' });
+      });
+    });
+  }
+
+  async setSyncConfig(config: { mode: 'decentralized' | 'traditional' | 'none', traditional?: { url: string, user: string, pass: string } }) {
+    // @ts-ignore
+    await chrome.storage.local.set({ sync_config: config });
+    
+    if (config.mode === 'traditional' && config.traditional) {
+      await dbService.syncWithRemote(config.traditional.url, config.traditional.user, config.traditional.pass);
+    } else {
+      await dbService.cancelSync();
+    }
+  }
+
+  /**
+   * Initialize sync on startup
+   */
+  async init() {
+    const config = await this.getSyncConfig();
+    if (config.mode === 'traditional' && config.traditional) {
+      await dbService.syncWithRemote(config.traditional.url, config.traditional.user, config.traditional.pass);
+    }
+  }
 }
 
 export const syncService = new SyncService();

@@ -1,8 +1,12 @@
 import { aiService } from './services/ai';
 import { dbService } from './services/db';
+import { syncService } from './services/sync';
 
 // Polyfill global for libraries like PouchDB in Service Worker
 (globalThis as any).global = globalThis;
+
+// Initialize sync on startup
+syncService.init().catch(console.error);
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Bookmark Intelligence Extension Installed');
