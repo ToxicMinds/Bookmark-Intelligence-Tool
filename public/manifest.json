@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Bookmark Intelligence Tool",
+  "version": "0.1.0",
+  "description": "Turn bookmarks into a searchable, structured knowledge base with AI summaries and semantic search.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "action": {
+    "default_popup": "index.html"
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "host_permissions": ["<all_urls>"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}
