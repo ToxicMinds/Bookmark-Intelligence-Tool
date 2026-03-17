@@ -25,10 +25,20 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [activeView, setActiveView] = useState<'all' | 'categories' | 'tags' | 'settings'>('all');
+  
+  const [folders, setFolders] = useState<string[]>(['General']);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
 
   useEffect(() => {
     loadBookmarks();
+    loadFolders();
   }, []);
+
+  const loadFolders = async () => {
+    const data = await dbService.getFolders();
+    setFolders(data);
+  };
 
   const loadBookmarks = async () => {
     setIsLoading(true);
@@ -39,6 +49,27 @@ const App = () => {
       console.error('Failed to load bookmarks:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return;
+    try {
+      await dbService.createFolder(newFolderName);
+      setNewFolderName('');
+      setIsCreatingFolder(false);
+      await loadFolders();
+    } catch (err) {
+      console.error('Failed to create folder:', err);
+    }
+  };
+
+  const handleMoveToFolder = async (bookmarkId: string, folderName: string) => {
+    try {
+      await dbService.updateBookmarkFolder(bookmarkId, folderName);
+      await loadBookmarks();
+    } catch (err) {
+      console.error('Failed to move bookmark:', err);
     }
   };
 
@@ -71,21 +102,24 @@ const App = () => {
     }
   };
 
-  const categories = useMemo(() => {
-    const cats: Record<string, number> = {};
+  const folderStats = useMemo(() => {
+    const stats: Record<string, number> = {};
+    folders.forEach(f => stats[f] = 0);
     bookmarks.forEach(b => {
-      const c = b.category || 'General';
-      cats[c] = (cats[c] || 0) + 1;
+      const f = b.category || 'General';
+      stats[f] = (stats[f] || 0) + 1;
     });
-    return Object.entries(cats).sort((a, b) => b[1] - a[1]);
-  }, [bookmarks]);
+    return Object.entries(stats).sort((a, b) => b[1] - a[1]);
+  }, [bookmarks, folders]);
 
   const allTags = useMemo(() => {
     const tags: Record<string, number> = {};
     bookmarks.forEach(b => {
-      b.tags.forEach(t => {
-        tags[t] = (tags[t] || 0) + 1;
-      });
+      if (b.tags) {
+        b.tags.forEach(t => {
+          tags[t] = (tags[t] || 0) + 1;
+        });
+      }
     });
     return Object.entries(tags).sort((a, b) => b[1] - a[1]);
   }, [bookmarks]);
@@ -101,14 +135,14 @@ const App = () => {
           <button 
             onClick={() => setActiveView('all')}
             className={`p-3 rounded-xl transition-all ${activeView === 'all' ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-600 hover:text-zinc-300'}`}
-            title="All Bookmarks"
+            title="All Memories"
           >
             <LayoutGrid size={24}/>
           </button>
           <button 
             onClick={() => setActiveView('categories')}
             className={`p-3 rounded-xl transition-all ${activeView === 'categories' ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-600 hover:text-zinc-300'}`}
-            title="Categories"
+            title="Folders"
           >
             <FolderOpen size={24}/>
           </button>
@@ -176,12 +210,34 @@ const App = () => {
                   <h1 className="text-4xl font-black tracking-tighter mb-2">Knowledge Vault</h1>
                   <p className="text-zinc-500 font-medium">Your private intelligence layer • {bookmarks.length} memories captured</p>
                 </div>
-                {activeView !== 'all' && (
+                {activeView === 'categories' && (
+                  <button 
+                    onClick={() => setIsCreatingFolder(true)}
+                    className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/5 px-4 py-2 rounded-full border border-emerald-500/10 hover:bg-emerald-500/10 transition-all"
+                  >
+                    + New Folder
+                  </button>
+                )}
+                {activeView !== 'all' && activeView !== 'categories' && (
                   <button onClick={() => setActiveView('all')} className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-indigo-400 bg-indigo-500/5 px-4 py-2 rounded-full border border-indigo-500/10 hover:bg-indigo-500/10 transition-all">
                     <Filter size={14} /> View All
                   </button>
                 )}
               </div>
+
+              {isCreatingFolder && (
+                <div className="flex gap-4 items-center animate-in fade-in slide-in-from-top-2 p-6 bg-zinc-900/50 border border-zinc-800 rounded-2xl">
+                  <input 
+                    type="text" 
+                    placeholder="Folder name..."
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-500/50"
+                  />
+                  <button onClick={handleCreateFolder} className="px-4 py-2 bg-emerald-600 text-white text-xs font-black uppercase rounded-lg hover:bg-emerald-500 transition-colors">Create</button>
+                  <button onClick={() => setIsCreatingFolder(false)} className="px-4 py-2 text-zinc-500 text-xs font-black uppercase">Cancel</button>
+                </div>
+              )}
 
               {activeView === 'all' && (
                 <div className="flex gap-4 items-center animate-in fade-in slide-in-from-top-2">
@@ -216,17 +272,15 @@ const App = () => {
 
             {activeView === 'categories' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12 animate-in fade-in zoom-in duration-300">
-                {categories.length > 0 ? categories.map(([cat, count]) => (
-                  <div key={cat} className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-3xl hover:border-indigo-500/40 transition-all group">
+                {folderStats.map(([cat, count]) => (
+                  <div key={cat} className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-3xl hover:border-indigo-500/40 transition-all group cursor-pointer">
                     <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400 mb-6 group-hover:scale-110 transition-transform">
                       <FolderOpen size={24} />
                     </div>
                     <h3 className="text-xl font-bold mb-1">{cat}</h3>
                     <p className="text-zinc-500 font-medium text-sm">{count} items</p>
                   </div>
-                )) : (
-                  <div className="col-span-full py-20 text-center bg-zinc-900/20 border border-dashed border-zinc-800 rounded-3xl text-zinc-600 font-bold uppercase tracking-widest">No categories discovered yet</div>
-                )}
+                ))}
               </div>
             )}
 
@@ -247,7 +301,7 @@ const App = () => {
             <div className="flex items-center justify-between mb-8 border-b border-zinc-900 pb-4">
               <div className="flex gap-8">
                 <button className={`font-bold border-b-2 pb-4 transition-all ${activeView === 'all' ? 'text-zinc-100 border-indigo-500' : 'text-zinc-500 border-transparent hover:text-zinc-300'}`}>
-                  {activeView === 'all' ? 'All Memories' : activeView === 'categories' ? 'Category Browser' : 'Tag Explorer'}
+                  {activeView === 'all' ? 'All Memories' : activeView === 'categories' ? 'Folder Browser' : 'Tag Explorer'}
                 </button>
               </div>
               <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-zinc-800">
@@ -291,9 +345,13 @@ const App = () => {
                     className="group relative bg-zinc-900/30 hover:bg-zinc-900/60 border border-zinc-800 hover:border-indigo-500/30 rounded-3xl p-6 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:shadow-indigo-500/10"
                   >
                     <div className="flex justify-between items-start mb-4">
-                      <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-wider rounded-full border border-indigo-500/10">
-                        {bookmark.category || "General"}
-                      </span>
+                      <select 
+                        value={bookmark.category || 'General'}
+                        onChange={(e) => handleMoveToFolder(bookmark._id, e.target.value)}
+                        className="bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-wider rounded-full border border-indigo-500/10 px-2 py-1 focus:outline-none cursor-pointer hover:bg-indigo-500/20 transition-colors appearance-none"
+                      >
+                        {folders.map(f => <option key={f} value={f} className="bg-zinc-900 text-zinc-100">{f}</option>)}
+                      </select>
                       <div className="flex gap-2">
                          <button 
                           onClick={() => handleDelete(bookmark._id)}
@@ -316,7 +374,7 @@ const App = () => {
                 </p>
 
                 <div className="flex flex-wrap gap-2 mb-6">
-                  {bookmark.tags.slice(0, 4).map(tag => (
+                  {bookmark.tags && bookmark.tags.slice(0, 4).map(tag => (
                     <span key={tag} className="text-[11px] font-bold text-zinc-400 bg-zinc-800/50 px-2 py-1 rounded-md">
                       #{tag}
                     </span>

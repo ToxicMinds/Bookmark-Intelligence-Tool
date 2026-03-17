@@ -11,10 +11,22 @@ const App = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<BookmarkDoc[]>([]);
   const [recentBookmarks, setRecentBookmarks] = useState<BookmarkDoc[]>([]);
+  const [folders, setFolders] = useState<string[]>(['General']);
+  const [selectedFolder, setSelectedFolder] = useState('General');
 
   useEffect(() => {
     loadRecent();
+    loadFolders();
   }, []);
+
+  const loadFolders = async () => {
+    try {
+      const data = await dbService.getFolders();
+      setFolders(data);
+    } catch (err) {
+      console.error('Failed to load folders:', err);
+    }
+  };
 
   const loadRecent = async () => {
     try {
@@ -35,7 +47,8 @@ const App = () => {
 
       const response = await chrome.runtime.sendMessage({
         action: 'save_bookmark',
-        tabId: tab.id
+        tabId: tab.id,
+        folder: selectedFolder
       });
 
       if (response && response.success) {
@@ -98,14 +111,31 @@ const App = () => {
             <div className="min-h-[140px] flex flex-col justify-center">
               {status === 'idle' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2">
-                  <p className="text-sm text-zinc-400 mb-6 leading-relaxed">
+                  <p className="text-sm text-zinc-400 mb-4 leading-relaxed">
                     Capture this page into your private, AI-powered knowledge base.
                   </p>
+                  
+                  <div className="mb-6">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-2">Target Folder</label>
+                    <div className="relative">
+                      <select 
+                        value={selectedFolder}
+                        onChange={(e) => setSelectedFolder(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs font-bold text-zinc-300 focus:outline-none appearance-none cursor-pointer"
+                      >
+                        {folders.map(f => <option key={f} value={f}>{f}</option>)}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-600">
+                        <ArrowRight size={14} className="rotate-90" />
+                      </div>
+                    </div>
+                  </div>
+
                   <button 
                     onClick={handleSave}
                     className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white py-3.5 rounded-xl font-bold shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 group"
                   >
-                    Analyze & Save Current Page
+                    Analyze & Save Page
                     <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>
@@ -159,7 +189,7 @@ const App = () => {
                     <div key={b._id} className="flex items-center justify-between p-3 bg-zinc-900/50 hover:bg-zinc-900 border border-zinc-800/50 rounded-xl transition-all group">
                       <div className="flex-1 min-w-0 pr-4">
                         <div className="text-xs font-bold text-zinc-200 truncate group-hover:text-indigo-400 transition-colors">{b.title}</div>
-                        <div className="text-[10px] text-zinc-500 truncate mt-0.5">{new URL(b.url).hostname}</div>
+                        <div className="text-[10px] text-zinc-500 truncate mt-0.5">{b.url ? new URL(b.url).hostname : ''}</div>
                       </div>
                       <a href={b.url} target="_blank" className="p-1.5 text-zinc-600 hover:text-white transition-colors bg-zinc-800 rounded-lg">
                         <ExternalLink size={12} />
@@ -225,7 +255,7 @@ const App = () => {
           <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Local Engine Online</span>
         </div>
         <div className="flex gap-4">
-          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-700">v0.1.5</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-700">v0.1.7</span>
         </div>
       </div>
     </div>

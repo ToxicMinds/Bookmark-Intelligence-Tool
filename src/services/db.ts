@@ -11,13 +11,13 @@ PouchDBConstructor.plugin(pouchdbFindPlugin);
 
 export interface BookmarkDoc {
   _id: string;
-  type: 'bookmark';
-  url: string;
+  type: 'bookmark' | 'folder';
+  url?: string;
   title: string;
-  textContent: string;
-  summary: string;
-  tags: string[];
-  category: string;
+  textContent?: string;
+  summary?: string;
+  tags?: string[];
+  category?: string; // This is the folder ID or name
   embedding?: number[];
   createdAt: string;
   lastAccessed: string;
@@ -35,14 +35,20 @@ export class DatabaseService {
 
   private async initIndices() {
     try {
-      await this.localDb.createIndex({
-        index: {
-          fields: ['type', 'createdAt']
-        }
-      });
+      await Promise.all([
+        this.localDb.createIndex({
+          index: { fields: ['type', 'createdAt'] }
+        }),
+        this.localDb.createIndex({
+          index: { fields: ['createdAt'] }
+        }),
+        this.localDb.createIndex({
+          index: { fields: ['type'] }
+        })
+      ]);
       console.log('Database indices initialized');
     } catch (err) {
-      console.error('Failed to initialize indices:', err);
+      console.debug('Index initialization note:', err);
     }
   }
 
@@ -57,19 +63,64 @@ export class DatabaseService {
     return this.localDb.put(doc);
   }
 
+  async getFolders(): Promise<string[]> {
+    try {
+      // Get all bookmarks to see current categories
+      const result = await this.localDb.find({
+        selector: { type: 'bookmark' }
+      } as any);
+      
+      const bookmarks = (result.docs as unknown) as BookmarkDoc[];
+      const categories = new Set<string>();
+      categories.add('General'); // Default folder
+      
+      bookmarks.forEach(b => {
+        if (b.category) categories.add(b.category);
+      });
+
+      // Also get explicitly created empty folders (future proofing)
+      const folderDocs = await this.localDb.find({
+        selector: { type: 'folder' }
+      } as any);
+      
+      folderDocs.docs.forEach((f: any) => categories.add(f.title));
+      
+      return Array.from(categories).sort();
+    } catch (err) {
+      console.error('Failed to get folders:', err);
+      return ['General'];
+    }
+  }
+
+  async createFolder(name: string) {
+    const id = `folder_${Date.now()}`;
+    return this.localDb.put({
+      _id: id,
+      type: 'folder',
+      title: name,
+      createdAt: new Date().toISOString(),
+      lastAccessed: new Date().toISOString(),
+    });
+  }
+
+  async updateBookmarkFolder(bookmarkId: string, folderName: string) {
+    const doc = await this.localDb.get(bookmarkId) as BookmarkDoc;
+    doc.category = folderName;
+    doc.lastAccessed = new Date().toISOString();
+    return this.localDb.put(doc);
+  }
+
   async getAllBookmarks(): Promise<BookmarkDoc[]> {
     try {
       const result = await this.localDb.find({
-        selector: { type: 'bookmark' },
+        selector: { type: 'bookmark', createdAt: { $gt: null } },
         sort: [{ createdAt: 'desc' }]
       } as any);
       return (result.docs as unknown) as BookmarkDoc[];
     } catch (err) {
-      console.warn('Sorted fetch failed (possibly index building), falling back to unsorted:', err);
       const result = await this.localDb.find({
         selector: { type: 'bookmark' }
       } as any);
-      // Manual sort as fallback
       const docs = (result.docs as unknown) as BookmarkDoc[];
       return docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
@@ -81,17 +132,14 @@ export class DatabaseService {
   }
 
   async searchBookmarks(query: string): Promise<BookmarkDoc[]> {
-    // Basic text search for now. Semantic search will be added later.
     const bookmarks = await this.getAllBookmarks();
     const lowerQuery = query.toLowerCase();
     return bookmarks.filter(b => 
       b.title.toLowerCase().includes(lowerQuery) || 
-      b.summary.toLowerCase().includes(lowerQuery) ||
-      b.tags.some(t => t.toLowerCase().includes(lowerQuery))
+      (b.summary && b.summary.toLowerCase().includes(lowerQuery)) ||
+      (b.tags && b.tags.some(t => t.toLowerCase().includes(lowerQuery)))
     );
   }
-
-  // Sync logic will be implemented in a separate method once user provides config
 }
 
 export const dbService = new DatabaseService();

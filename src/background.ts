@@ -10,7 +10,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onMessage.addListener((request: any, _sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
   if (request.action === 'save_bookmark') {
-    handleSaveBookmark(request.tabId).then(sendResponse);
+    handleSaveBookmark(request.tabId, request.folder).then(sendResponse);
     return true; // Keep channel open for async response
   }
 });
@@ -31,7 +31,7 @@ async function ensureContentScriptLoaded(tabId: number) {
   }
 }
 
-async function handleSaveBookmark(tabId: number) {
+async function handleSaveBookmark(tabId: number, userFolder?: string) {
   try {
     // 1. Ensure content script is ready
     await ensureContentScriptLoaded(tabId);
@@ -50,7 +50,7 @@ async function handleSaveBookmark(tabId: number) {
       textContent: content.textContent,
       summary: aiResult.summary,
       tags: aiResult.tags,
-      category: aiResult.category,
+      category: userFolder || aiResult.category,
       embedding: aiResult.embedding,
     });
 
