@@ -177,6 +177,22 @@ export class DatabaseService {
     return this.localDb.remove(doc);
   }
 
+  async upsertBookmark(bookmark: BookmarkDoc) {
+    try {
+      const existing = await this.localDb.get(bookmark._id);
+      return this.localDb.put({
+        ...existing,
+        ...bookmark,
+        _rev: existing._rev
+      });
+    } catch (err: any) {
+      if (err.status === 404) {
+        return this.localDb.put(bookmark);
+      }
+      throw err;
+    }
+  }
+
   async searchBookmarks(query: string): Promise<BookmarkDoc[]> {
     const bookmarks = await this.getAllBookmarks();
     const lowerQuery = query.toLowerCase();

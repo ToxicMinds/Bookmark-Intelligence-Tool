@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Brain Vault",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Your private intelligence layer. AI-powered bookmarks, semantic search, and sidebar intelligence.",
-  "permissions": ["storage", "activeTab", "scripting", "contextMenus", "sidePanel", "tabs", "tabGroups"],
+  "permissions": ["storage", "activeTab", "scripting", "contextMenus", "sidePanel", "tabs", "tabGroups", "identity"],
   "action": {
     "default_popup": "index.html",
     "default_icon": {
@@ -14,6 +14,10 @@
   },
   "side_panel": {
     "default_path": "sidepanel.html"
+  },
+  "oauth2": {
+    "client_id": "848834465492-f01oen7v3oelrvv0.apps.googleusercontent.com",
+    "scopes": ["https://www.googleapis.com/auth/drive.appdata", "https://www.googleapis.com/auth/userinfo.email"]
   },
   "icons": {
     "16": "icon16.png",

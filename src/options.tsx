@@ -15,11 +15,13 @@ import {
   Filter,
   Bookmark,
   BookOpen,
-  X
+  X,
+  Cloud
 } from 'lucide-react'
 import { dbService, BookmarkDoc } from './services/db'
 import { semanticSearch } from './services/semanticSearch'
 import { licenseService, LicenseStatus } from './services/license'
+import { syncService } from './services/sync'
 import './index.css'
 
 const App = () => {
@@ -36,6 +38,11 @@ const App = () => {
   const [license, setLicense] = useState<LicenseStatus>(licenseService.getLicenseStatus());
   const [selectedReaderBookmark, setSelectedReaderBookmark] = useState<BookmarkDoc | null>(null);
   const [relatedBookmarks, setRelatedBookmarks] = useState<BookmarkDoc[]>([]);
+
+  // Sync State
+  const [masterPassword, setMasterPassword] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
   const highlightsCount = useMemo(() => {
     return bookmarks.reduce((acc, b) => acc + (b.highlights?.length || 0), 0);
@@ -144,12 +151,15 @@ const App = () => {
 
     try {
       const tabIds = await Promise.all(
+        // @ts-ignore
         folderBookmarks.map(b => chrome.tabs.create({ url: b.url, active: false }).then(t => t.id))
       );
       
       const validTabIds = tabIds.filter(id => id !== undefined) as number[];
       if (validTabIds.length > 0) {
+        // @ts-ignore
         const groupId = await chrome.tabs.group({ tabIds: validTabIds as [number, ...number[]] });
+        // @ts-ignore
         await chrome.tabGroups.update(groupId, { 
           title: folderName,
           color: 'blue'
@@ -157,6 +167,37 @@ const App = () => {
       }
     } catch (err) {
       console.error('Failed to open folder tabs:', err);
+    }
+  };
+
+  const handleSetMasterPassword = async () => {
+    if (!masterPassword) return;
+    try {
+      await syncService.deriveKey(masterPassword);
+      setSyncStatus('E2EE Key Derived');
+    } catch (err) {
+      console.error('Failed to derive key:', err);
+    }
+  };
+
+  const handleSyncPush = async () => {
+    setIsSyncing(true);
+    try {
+      // @ts-ignore
+      chrome.identity.getAuthToken({ interactive: true }, async (result: any) => {
+        const token = typeof result === 'string' ? result : result?.token;
+        if (!token) {
+          setSyncStatus('Auth failed');
+          setIsSyncing(false);
+          return;
+        }
+        await syncService.pushToGDrive(token);
+        setSyncStatus('Vault synced to Google Drive');
+        setIsSyncing(false);
+      });
+    } catch (err) {
+      setSyncStatus('Sync failed: Check connection');
+      setIsSyncing(false);
     }
   };
 
@@ -288,31 +329,47 @@ const App = () => {
                 <section className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-3xl">
                   <div className="flex items-center gap-3 mb-6">
                     <ShieldCheck className="text-emerald-500" size={24} />
-                    <h2 className="text-xl font-bold italic underline decoration-emerald-500/20">Privacy & Encryption</h2>
+                    <h2 className="text-xl font-bold italic underline decoration-emerald-500/20">Sync & Privacy (BYOS)</h2>
                   </div>
                   <p className="text-zinc-400 mb-6 leading-relaxed">
-                    Your vault is currently **Local-Only**. This means your bookmarks, summaries, and AI embeddings exist exclusively on this device's disk.
+                    Your vault is currently **Local-First**. Enable Decentralized Sync (BYOS) to mirror your memories to your own Google Drive.
                   </p>
-                  <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl text-emerald-400/80 text-sm font-medium">
-                    E2EE Synchronization (PouchDB + CouchDB) is available for Premium users.
-                  </div>
-                </section>
-
-                <section className={`p-8 bg-zinc-900/30 border border-zinc-800 rounded-3xl ${license.tier === 'free' ? 'opacity-50 grayscale' : ''}`}>
-                  <h2 className="text-xl font-bold mb-4">Sync Configuration</h2>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2">Remote CouchDB URL</label>
-                      <input disabled={license.tier === 'free'} type="text" placeholder="https://your-couchdb-instance.com" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none" />
-                    </div>
+                  
+                  <div className="space-y-6">
                     <div>
                       <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2">E2EE Master Password</label>
-                      <input disabled={license.tier === 'free'} type="password" placeholder="••••••••••••" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none" />
+                      <div className="flex gap-2">
+                        <input 
+                          type="password" 
+                          placeholder="••••••••••••" 
+                          value={masterPassword}
+                          onChange={(e) => setMasterPassword(e.target.value)}
+                          className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50" 
+                        />
+                        <button 
+                          onClick={handleSetMasterPassword}
+                          className="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-xs font-bold transition-all"
+                        >Set</button>
+                      </div>
+                      <p className="text-[10px] text-zinc-600 mt-2">Required to encrypt data before syncing.</p>
+                    </div>
+
+                    <div className="pt-4 border-t border-zinc-800 space-y-4">
+                      <h3 className="text-sm font-bold flex items-center gap-2">
+                        <Cloud className="text-indigo-400" size={16} /> Google Drive Backup
+                      </h3>
+                      <button 
+                        disabled={license.tier === 'free'}
+                        onClick={handleSyncPush}
+                        className="w-full bg-indigo-600/10 border border-indigo-500/20 hover:bg-indigo-500/20 text-indigo-400 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-30 disabled:grayscale"
+                      >
+                        {isSyncing ? 'Syncing...' : 'Sync to My Google Drive'}
+                      </button>
+                      {license.tier === 'free' && <p className="text-[10px] text-indigo-400 italic">Cloud Sync requires Premium</p>}
+                      {syncStatus && <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest text-center mt-2">{syncStatus}</p>}
                     </div>
                   </div>
-                  {license.tier === 'free' && <p className="text-[10px] text-indigo-400 mt-4 italic font-bold">Requires Premium Subscription</p>}
                 </section>
-              </div>
 
               <section className="p-8 bg-gradient-to-br from-indigo-600/20 to-zinc-900/50 border border-indigo-500/30 rounded-3xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4">
@@ -337,8 +394,8 @@ const App = () => {
                         <p className="text-sm font-medium">Semantic AI Search (Conceptual Matching)</p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><ShieldCheck size={12}/></div>
-                        <p className="text-sm font-medium">E2EE Cloud Sync (PouchDB + CouchDB)</p>
+                        <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><Cloud size={12}/></div>
+                        <p className="text-sm font-medium">Decentralized BYOS Sync (GDrive)</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><Brain size={12}/></div>
@@ -369,20 +426,11 @@ const App = () => {
                       >
                         Go Premium Now
                       </button>
-                      <button 
-                        onClick={() => {
-                          const code = prompt('Enter your license key:');
-                          if (code === 'BETA-TESTER') handleUpgrade();
-                          else alert('Invalid key');
-                        }}
-                        className="w-full border border-zinc-800 hover:border-zinc-700 py-3 rounded-2xl font-bold text-xs text-zinc-500 transition-all"
-                      >
-                        Restore Purchase / Enter Key
-                      </button>
                     </div>
                   </div>
                 )}
               </section>
+            </div>
             </div>
           </div>
         ) : (
@@ -571,7 +619,7 @@ const App = () => {
 
                     {bookmark.highlights && bookmark.highlights.length > 0 && (
                       <div className="mb-6 space-y-3 border-l-2 border-indigo-500/30 pl-4 py-1">
-                        {bookmark.highlights.slice(0, 2).map((h, i) => (
+                        {bookmark.highlights!.slice(0, 2).map((h, i) => (
                           <div key={i} className="text-xs text-zinc-400 leading-normal line-clamp-2 italic relative">
                             "{h}"
                             {i === 0 && bookmark.highlights!.length > 2 && (
