@@ -43,6 +43,7 @@
                 </div>
             </div>
             <div class="flex gap-8 text-xs font-black uppercase tracking-widest text-zinc-500">
+                <button onclick="loadContent('LANDING')" class="hover:text-indigo-400 transition-colors">Home</button>
                 <button onclick="loadContent('FEATURES.md')" class="hover:text-indigo-400 transition-colors">Features</button>
                 <button onclick="loadContent('SYNC_GUIDE.md')" class="hover:text-indigo-400 transition-colors">Sync</button>
                 <a href="https://github.com/ToxicMinds/Bookmark-Intelligence-Tool" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-all">Repo</a>
@@ -70,6 +71,115 @@
     <script>
         async function loadContent(file) {
             const container = document.getElementById('content');
+            
+            // Special handling for the Landing Page (Home)
+            if (file === 'LANDING') {
+                container.innerHTML = `
+                    <div class="space-y-32">
+                        <!-- Hero Section -->
+                        <div class="text-center space-y-8 py-10">
+                             <div class="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full mb-4">
+                                <span class="relative flex h-2 w-2">
+                                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                  <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                                </span>
+                                <span class="text-[10px] font-black uppercase tracking-widest text-indigo-400">Merchant Verified Engine v0.4.7</span>
+                            </div>
+                            <h1 class="text-6xl md:text-8xl font-black tracking-tight leading-[0.9] text-white">
+                                YOUR SECOND <br/> <span class="text-indigo-500">BRAIN</span> IS HERE.
+                            </h1>
+                            <p class="text-xl text-zinc-400 max-w-2xl mx-auto font-medium">
+                                The privacy-first, AI-powered intelligence layer for your browser. Save, search, and recall everything with local-first vector embeddings.
+                            </p>
+                            <div class="flex items-center justify-center gap-6 pt-8">
+                                <button onclick="window.scrollTo({ top: document.getElementById('pricing').offsetTop - 100, behavior: 'smooth' })" class="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-2xl shadow-indigo-600/30">Get Premium</button>
+                                <button onclick="loadContent('FEATURES.md')" class="px-8 py-4 bg-zinc-900 border border-zinc-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-zinc-800 transition-all">Explore Docs</button>
+                            </div>
+                        </div>
+
+                        <!-- Features Grid -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div class="p-8 bg-zinc-900/40 border border-zinc-800 rounded-3xl">
+                                <div class="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-500 mb-6">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                </div>
+                                <h3 class="text-xl font-black mb-3 text-white">Semantic Search</h3>
+                                <p class="text-sm text-zinc-500 font-medium">Search by concept, not just keywords. Our local neural engine understands your intent.</p>
+                            </div>
+                            <div class="p-8 bg-zinc-900/40 border border-zinc-800 rounded-3xl">
+                                <div class="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 mb-6">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                </div>
+                                <h3 class="text-xl font-black mb-3 text-white">Local-First Privacy</h3>
+                                <p class="text-sm text-zinc-500 font-medium">Your data never leaves your device unless you sync it via your own encrypted vault.</p>
+                            </div>
+                            <div class="p-8 bg-zinc-900/40 border border-zinc-800 rounded-3xl">
+                                <div class="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-500 mb-6">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                </div>
+                                <h3 class="text-xl font-black mb-3 text-white">Cross-Cloud Sync</h3>
+                                <p class="text-sm text-zinc-500 font-medium">Mirror your vault to Google Drive or private CouchDB instances with full E2EE.</p>
+                            </div>
+                        </div>
+
+                        <!-- Pricing Section -->
+                        <div id="pricing" class="space-y-12">
+                            <div class="text-center space-y-4">
+                                <h2 class="text-4xl font-black text-white">SIMPLE, TRANSPARENT PRICING</h2>
+                                <p class="text-zinc-500 font-medium">Choose the plan that fits your intelligence needs.</p>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                <!-- Monthly -->
+                                <div class="p-10 bg-zinc-900/40 border border-zinc-800 rounded-3xl flex flex-col items-center">
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4">Monthly Subscription</span>
+                                    <div class="text-5xl font-black text-white">$1.99<span class="text-lg text-zinc-600">/mo</span></div>
+                                    <ul class="mt-10 space-y-4 text-sm text-zinc-400 font-medium flex-1">
+                                        <li class="flex items-center gap-2">✓ Unlimited Semantic Search</li>
+                                        <li class="flex items-center gap-2">✓ Full E2EE Sync</li>
+                                        <li class="flex items-center gap-2">✓ Priority Neural Processing</li>
+                                    </ul>
+                                    <a href="https://toxminds.lemonsqueezy.com/checkout/buy/82831f38-6c76-403d-bfdb-4948bcc5abea" class="w-full mt-10 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl font-black uppercase tracking-widest text-center transition-all">Buy Monthly</a>
+                                </div>
+                                <!-- Yearly -->
+                                <div class="p-10 bg-indigo-600/10 border-2 border-indigo-600 rounded-3xl flex flex-col items-center relative overflow-hidden">
+                                    <div class="absolute top-0 right-0 p-4">
+                                        <span class="bg-indigo-600 text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-full">Best Value</span>
+                                    </div>
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4">Yearly Subscription</span>
+                                    <div class="text-5xl font-black text-white">$14.99<span class="text-lg text-zinc-600">/yr</span></div>
+                                    <ul class="mt-10 space-y-4 text-sm text-zinc-300 font-medium flex-1">
+                                        <li class="flex items-center gap-2">✓ Everything in Monthly</li>
+                                        <li class="flex items-center gap-2">✓ 38% Savings annually</li>
+                                        <li class="flex items-center gap-2">✓ Early Access to AI Lab</li>
+                                    </ul>
+                                    <a href="https://toxminds.lemonsqueezy.com/checkout/buy/b446dc9d-8f3d-4a48-b6f9-c77565d4dfec" class="w-full mt-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase tracking-widest text-center transition-all shadow-xl shadow-indigo-600/20">Buy Yearly</a>
+                                </div>
+                                <!-- Lifetime -->
+                                <div class="p-10 bg-zinc-900/40 border border-zinc-800 rounded-3xl flex flex-col items-center">
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4">One-Time Payment</span>
+                                    <div class="text-5xl font-black text-white">$49.99<span class="text-lg text-zinc-600">/once</span></div>
+                                    <ul class="mt-10 space-y-4 text-sm text-zinc-400 font-medium flex-1">
+                                        <li class="flex items-center gap-2">✓ Forever Ownership</li>
+                                        <li class="flex items-center gap-2">✓ No Recurring Fees</li>
+                                        <li class="flex items-center gap-2">✓ Lifetime Support</li>
+                                    </ul>
+                                    <a href="https://toxminds.lemonsqueezy.com/checkout/buy/4fe85453-d573-49a4-a890-c31d71738f56" class="w-full mt-10 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl font-black uppercase tracking-widest text-center transition-all">Buy Lifetime</a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Trust Section -->
+                        <div class="p-12 glass rounded-[3rem] text-center space-y-6">
+                            <h3 class="text-2xl font-black text-white uppercase tracking-widest">Fulfillment Information</h3>
+                            <p class="text-zinc-400 max-w-2xl mx-auto italic">
+                                "Brain Vault is a digital software product. Upon successful checkout, your license key is generated instantly by LemonSqueezy and displayed on the success page. You will also receive an automated email containing your unique access code for immediate activation within the browser extension."
+                            </p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
             container.innerHTML = `
                 <div class="flex flex-col items-center justify-center py-32 space-y-4 animate-pulse">
                     <div class="w-12 h-12 border-4 border-indigo-500/10 border-t-indigo-500/50 rounded-full animate-spin"></div>
@@ -78,8 +188,7 @@
             `;
             
             try {
-                // Determine base path for the Markdown files (assuming they are in the root of the repo)
-                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                // Determine base path for the Markdown files
                 const basePath = './docs/';
                 
                 const response = await fetch(basePath + file);
@@ -111,8 +220,10 @@
             const page = params.get('page');
             if (page === 'sync') {
                 loadContent('SYNC_GUIDE.md');
-            } else {
+            } else if (page === 'features') {
                 loadContent('FEATURES.md');
+            } else {
+                loadContent('LANDING');
             }
         };
     </script>
