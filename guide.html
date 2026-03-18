@@ -46,6 +46,7 @@
                 <button onclick="loadContent('LANDING')" class="hover:text-indigo-400 transition-colors">Home</button>
                 <button onclick="loadContent('FEATURES.md')" class="hover:text-indigo-400 transition-colors">Features</button>
                 <button onclick="loadContent('SYNC_GUIDE.md')" class="hover:text-indigo-400 transition-colors">Sync</button>
+                <button onclick="loadContent('FEEDBACK')" class="hover:text-indigo-400 transition-colors">Feedback</button>
                 <a href="https://github.com/ToxicMinds/Bookmark-Intelligence-Tool" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-all">Repo</a>
             </div>
         </div>
@@ -180,6 +181,92 @@
                 return;
             }
 
+            // Special handling for Feedback page
+            if (file === 'FEEDBACK') {
+                container.innerHTML = `
+                    <div class="space-y-12">
+                        <div class="text-center space-y-4">
+                            <div class="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full mb-2">
+                                <span class="text-[10px] font-black uppercase tracking-widest text-indigo-400">Direct Line to the Dev</span>
+                            </div>
+                            <h1 class="text-5xl font-black tracking-tight text-white">Share Your <span class="text-indigo-500">Feedback</span></h1>
+                            <p class="text-zinc-400 max-w-xl mx-auto font-medium">Your insight shapes Brain Vault. Bug reports, feature ideas, or just a note — all of it matters.</p>
+                        </div>
+
+                        <div class="p-10 glass rounded-[2.5rem] space-y-8 max-w-2xl mx-auto">
+                            <!-- Star Rating -->
+                            <div class="space-y-3">
+                                <label class="text-[10px] font-black uppercase tracking-widest text-zinc-500">How would you rate Brain Vault?</label>
+                                <div id="stars" class="flex gap-3 text-4xl cursor-pointer select-none">
+                                    <span data-val="1" onclick="setRating(1)" class="star text-zinc-700 hover:text-yellow-400 transition-all">★</span>
+                                    <span data-val="2" onclick="setRating(2)" class="star text-zinc-700 hover:text-yellow-400 transition-all">★</span>
+                                    <span data-val="3" onclick="setRating(3)" class="star text-zinc-700 hover:text-yellow-400 transition-all">★</span>
+                                    <span data-val="4" onclick="setRating(4)" class="star text-zinc-700 hover:text-yellow-400 transition-all">★</span>
+                                    <span data-val="5" onclick="setRating(5)" class="star text-zinc-700 hover:text-yellow-400 transition-all">★</span>
+                                </div>
+                            </div>
+
+                            <!-- Category -->
+                            <div class="space-y-3">
+                                <label class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Category</label>
+                                <div class="grid grid-cols-3 gap-3">
+                                    <button onclick="setCategory('Bug Report')" id="cat-bug" class="cat-btn py-3 px-4 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-black text-zinc-400 hover:border-rose-500/50 hover:text-rose-400 transition-all">🐛 Bug Report</button>
+                                    <button onclick="setCategory('Feature Request')" id="cat-feature" class="cat-btn py-3 px-4 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-black text-zinc-400 hover:border-indigo-500/50 hover:text-indigo-400 transition-all">✦ Feature Request</button>
+                                    <button onclick="setCategory('General Feedback')" id="cat-general" class="cat-btn py-3 px-4 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-black text-zinc-400 hover:border-emerald-500/50 hover:text-emerald-400 transition-all">💬 General</button>
+                                </div>
+                            </div>
+
+                            <!-- Message -->
+                            <div class="space-y-3">
+                                <label class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Your Message</label>
+                                <textarea id="fb-message" rows="5" placeholder="Describe your experience, idea, or issue in detail..." class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-5 py-4 text-zinc-300 text-sm font-medium placeholder-zinc-700 focus:outline-none focus:border-indigo-500/50 transition-colors resize-none"></textarea>
+                            </div>
+
+                            <!-- Submit -->
+                            <button onclick="submitFeedback()" class="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                                Submit via GitHub
+                            </button>
+
+                            <p class="text-center text-xs text-zinc-700 font-medium">Opens a pre-filled GitHub Issue in a new tab. A free GitHub account is required. You'll receive a reply directly on your issue thread.</p>
+                        </div>
+                    </div>
+                `;
+
+                // Inject feedback JS after rendering
+                window._feedbackRating = 0;
+                window._feedbackCategory = '';
+                window.setRating = function(val) {
+                    window._feedbackRating = val;
+                    document.querySelectorAll('.star').forEach((s, i) => {
+                        s.style.color = i < val ? '#facc15' : '#3f3f46';
+                        s.style.transform = i < val ? 'scale(1.15)' : 'scale(1)';
+                    });
+                };
+                window.setCategory = function(cat) {
+                    window._feedbackCategory = cat;
+                    document.querySelectorAll('.cat-btn').forEach(b => {
+                        b.style.borderColor = '';
+                        b.style.color = '';
+                    });
+                    const map = { 'Bug Report': 'cat-bug', 'Feature Request': 'cat-feature', 'General Feedback': 'cat-general' };
+                    const btn = document.getElementById(map[cat]);
+                    if (btn) { btn.style.borderColor = '#4f46e5'; btn.style.color = '#818cf8'; }
+                };
+                window.submitFeedback = function() {
+                    const msg = document.getElementById('fb-message').value.trim();
+                    if (!msg) { alert('Please enter a message before submitting.'); return; }
+                    const rating = window._feedbackRating || 0;
+                    const cat = window._feedbackCategory || 'General Feedback';
+                    const stars = rating > 0 ? '★'.repeat(rating) + '☆'.repeat(5 - rating) : 'Not rated';
+                    const title = encodeURIComponent('[' + cat + '] ' + (msg.length > 60 ? msg.substring(0, 60) + '...' : msg));
+                    const body = encodeURIComponent('**Category:** ' + cat + '\n**Rating:** ' + stars + ' (' + (rating || 'N/A') + '/5)\n\n**Message:**\n' + msg + '\n\n---\n*Submitted via Brain Vault Guide Feedback Form*');
+                    const label = encodeURIComponent(cat === 'Bug Report' ? 'bug' : cat === 'Feature Request' ? 'enhancement' : 'feedback');
+                    window.open('https://github.com/ToxicMinds/Bookmark-Intelligence-Tool/issues/new?title=' + title + '&body=' + body + '&labels=' + label, '_blank');
+                };
+                return;
+            }
+
             container.innerHTML = `
                 <div class="flex flex-col items-center justify-center py-32 space-y-4 animate-pulse">
                     <div class="w-12 h-12 border-4 border-indigo-500/10 border-t-indigo-500/50 rounded-full animate-spin"></div>
@@ -222,6 +309,8 @@
                 loadContent('SYNC_GUIDE.md');
             } else if (page === 'features') {
                 loadContent('FEATURES.md');
+            } else if (page === 'feedback') {
+                loadContent('FEEDBACK');
             } else {
                 loadContent('LANDING');
             }

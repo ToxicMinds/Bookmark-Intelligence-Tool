@@ -1,4 +1,4 @@
-# 🧞‍♂️ Brain Vault: Neural Recall Masterlist (v0.4.0)
+# 🧞‍♂️ Brain Vault: Neural Recall Masterlist (v0.4.8)
 
 **Move from "Bookmarks" to "Externalized Memory".**
 
@@ -48,6 +48,6 @@
 
 ---
 
-## 🛠 UX & Navigation (v0.4.1)
+## 🛠 UX & Navigation (v0.4.8)
 - **Universal Access**: "Open Full Screen Vault" is now accessible from both Save and Search tabs in the popup.
 - **Hosted Intelligence**: Professional documentation and sync guides are now hosted externally for a cleaner brand experience.

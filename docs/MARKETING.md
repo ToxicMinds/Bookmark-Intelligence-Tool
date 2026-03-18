@@ -1,4 +1,4 @@
-# Brain Vault - Growth & Sustainable Strategy (v0.4.0)
+# Brain Vault - Growth & Sustainable Strategy (v0.4.8)
 
 We pivot from a "Bookmark Tool" to a **Neural Recall Engine** targeting high-intent power users.
 
