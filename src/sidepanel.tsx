@@ -163,7 +163,10 @@ const SidePanel = () => {
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-600/20">
             <Brain size={18} className="text-white" />
           </div>
-          <h1 className="font-black text-sm tracking-tight">Brain Vault</h1>
+          <div className="flex items-baseline gap-2">
+            <h1 className="font-black text-sm tracking-tight">Brain Vault</h1>
+            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.3.5</span>
+          </div>
         </div>
         <div className="flex bg-zinc-900 rounded-lg p-1">
           <button 

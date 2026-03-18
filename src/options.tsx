@@ -362,7 +362,10 @@ const App = () => {
       <main className="pl-20 max-w-7xl mx-auto px-12 py-12">
         {activeView === 'settings' ? (
           <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4">
-            <h1 className="text-4xl font-black tracking-tighter mb-12">Vault Settings</h1>
+            <div className="flex items-center justify-between mb-12">
+              <h1 className="text-4xl font-black tracking-tighter">Vault Settings</h1>
+              <span className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] font-black text-zinc-500 uppercase tracking-widest">v0.3.5</span>
+            </div>
             
             <div className="space-y-10">
                 <section className="p-8 bg-zinc-900/40 border border-zinc-800 rounded-3xl shadow-2xl relative overflow-hidden">
