@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brain Vault | The AI-Powered Intelligence Layer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #09090b; color: #f4f4f5; }
+        .glass { background: rgba(24, 24, 27, 0.4); backdrop-filter: blur(20px); border: 1px solid rgba(63, 63, 70, 0.4); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .prose h1 { font-weight: 900; letter-spacing: -0.05em; color: white; margin-bottom: 2rem; border-bottom: 2px solid #4f46e5; padding-bottom: 1rem; }
+        .prose h2 { font-weight: 800; letter-spacing: -0.02em; color: white; margin-top: 3rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .prose h3 { font-weight: 800; color: #818cf8; margin-top: 2rem; margin-bottom: 1rem; }
+        .prose p { color: #a1a1aa; line-height: 1.8; margin-bottom: 1.25rem; }
+        .prose ul { list-style-type: none; padding-left: 0; }
+        .prose li { position: relative; padding-left: 1.5rem; color: #d4d4d8; margin-bottom: 0.75rem; }
+        .prose li::before { content: "→"; position: absolute; left: 0; color: #4f46e5; font-weight: bold; }
+        .prose strong { color: white; font-weight: 700; }
+        .prose hr { border: 0; border-top: 1px solid #27272a; margin: 4rem 0; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #09090b; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+    </style>
+</head>
+<body class="selection:bg-indigo-500/30">
+    <div class="fixed inset-0 pointer-events-none overflow-hidden">
+        <div class="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-indigo-600/10 blur-[120px] rounded-full"></div>
+        <div class="absolute -bottom-[20%] -right-[10%] w-[50%] h-[50%] bg-emerald-600/10 blur-[120px] rounded-full"></div>
+    </div>
+
+    <nav class="sticky top-0 z-50 glass border-b border-zinc-800/50">
+        <div class="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/40">
+                    <svg class="text-white w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.1 12.1h-2.2v-2.2h2.2v2.2zM12 11.1c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+                </div>
+                <div>
+                   <span class="font-black text-xl tracking-tighter">Brain Vault</span>
+                   <span class="ml-2 text-[10px] font-black uppercase text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-full">v0.4.2</span>
+                </div>
+            </div>
+            <div class="flex gap-8 text-xs font-black uppercase tracking-widest text-zinc-500">
+                <button onclick="loadContent('FEATURES.md')" class="hover:text-indigo-400 transition-colors">Features</button>
+                <button onclick="loadContent('SYNC_GUIDE.md')" class="hover:text-indigo-400 transition-colors">Sync</button>
+                <a href="https://github.com/ToxicMinds/Bookmark-Intelligence-Tool" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-all">Repo</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto px-6 py-20 relative">
+        <div id="content" class="prose animate-in fade-in slide-in-from-bottom-6 duration-700">
+            <!-- Content will be injected here -->
+            <div class="flex flex-col items-center justify-center py-32 space-y-4">
+                <div class="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+                <p class="text-xs font-black uppercase tracking-widest text-zinc-500">Decrypting Neural Vault...</p>
+            </div>
+        </div>
+    </main>
+
+    <footer class="py-20 border-t border-zinc-900 bg-zinc-950/50">
+        <div class="max-w-6xl mx-auto px-6 text-center">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-700 mb-4">The Privacy-First AI Second Brain</p>
+            <div class="w-1 h-1 bg-zinc-800 rounded-full mx-auto"></div>
+        </div>
+    </footer>
+
+    <script>
+        async function loadContent(file) {
+            const container = document.getElementById('content');
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-32 space-y-4 animate-pulse">
+                    <div class="w-12 h-12 border-4 border-indigo-500/10 border-t-indigo-500/50 rounded-full animate-spin"></div>
+                    <p class="text-xs font-black uppercase tracking-widest text-zinc-600">Syncing Intelligence...</p>
+                </div>
+            `;
+            
+            try {
+                // Determine base path for the Markdown files (assuming they are in the root of the repo)
+                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                const basePath = './docs/';
+                
+                const response = await fetch(basePath + file);
+                if (!response.ok) throw new Error('Neural Link Offline');
+                const text = await response.text();
+                
+                // Set the rendered HTML
+                container.innerHTML = marked.parse(text);
+                
+                // Add appearance animation
+                container.classList.remove('animate-in', 'fade-in', 'slide-in-from-bottom-6');
+                void container.offsetWidth; // Trigger reflow
+                container.classList.add('animate-in', 'fade-in', 'slide-in-from-bottom-6');
+                
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch (err) {
+                container.innerHTML = `
+                    <div class="p-12 bg-rose-500/5 border border-rose-500/20 rounded-3xl text-center">
+                        <h2 class="text-rose-500 font-black mb-2 uppercase tracking-widest text-xs">Access Fault</h2>
+                        <p class="text-zinc-500 text-sm">Required neural pattern "${file}" not found in current memory.</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Handle URL parameters for deep-linking
+        window.onload = () => {
+            const params = new URLSearchParams(window.location.search);
+            const page = params.get('page');
+            if (page === 'sync') {
+                loadContent('SYNC_GUIDE.md');
+            } else {
+                loadContent('FEATURES.md');
+            }
+        };
+    </script>
+</body>
+</html>

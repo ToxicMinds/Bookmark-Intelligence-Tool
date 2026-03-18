@@ -384,7 +384,7 @@ const App = () => {
                   <Download size={14} />
                   Export JSON
                 </button>
-                <span className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] font-black text-zinc-500 uppercase tracking-widest">v0.4.2</span>
+                <span className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] font-black text-zinc-500 uppercase tracking-widest">v0.4.3</span>
               </div>
             </div>
             
@@ -550,7 +550,7 @@ const App = () => {
                       </div>
                     </div>
                     <a 
-                      href="https://ToxicMinds.github.io/Bookmark-Intelligence-Tool/docs/?page=sync" 
+                      href="https://ToxicMinds.github.io/Bookmark-Intelligence-Tool/guide.html?page=sync" 
                       target="_blank" 
                       rel="noreferrer"
                       className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"

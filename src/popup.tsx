@@ -367,7 +367,7 @@ const App = () => {
           <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Local Engine Online</span>
         </div>
         <div className="flex gap-4">
-          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-700">v0.4.1</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-700">v0.4.3</span>
         </div>
       </div>
     </div>
