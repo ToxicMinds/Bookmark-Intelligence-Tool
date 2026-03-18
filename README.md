@@ -6,17 +6,15 @@
 
 Brain Vault is a premium, local-first Chrome extension that turns your scattered bookmarks into a structured, searchable knowledge base. Using state-of-the-art AI (Xenova Transformers) running entirely in your browser, it summarizes, categorizes, and indexes your digital life without ever letting your data leave your device.
 
-## ✨ Key Features
+## ✨ Key Features (v0.3.5)
 
-- **Local AI Intel**: Automated 3-bullet summaries and categorization.
-- **Semantic Search**: Find bookmarks by *meaning*, not just keywords (Premium).
-- **End-to-End Encryption**: Opt-in sync that keeps your vault private with AES-GCM (Premium).
-- **Productivity First**: Bulk-open folders into named Tab Groups.
-- **Privacy by Design**: No tracking, no cloud-side processing. Your vault is YOURS.
+- [Full Feature Masterlist](./FEATURES.md)
+- [Marketing & Growth Strategy](./MARKETING.md)
+- [Sync Architecture Guide](./SYNC_GUIDE.md)
 
 ## 🚀 Getting Started
 
-1.  **Direct Download**: Download the latest [v0.1.11 release](https://github.com/ToxicMinds/Bookmark-Intelligence-Tool/raw/main/bookmark-intelligence-tool-v0.1.11.zip).
+1.  **Direct Download**: Download the latest [v0.3.5 release](https://github.com/ToxicMinds/Bookmark-Intelligence-Tool/raw/main/bookmark-intelligence-tool-v0.3.5.zip).
 2.  **Install**:
     - Unzip the torrent/zip.
     - Go to `chrome://extensions`.
