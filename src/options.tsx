@@ -44,10 +44,19 @@ const App = () => {
   const [masterPassword, setMasterPassword] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [expandedHighlights, setExpandedHighlights] = useState<Record<string, boolean>>({});
 
   const highlightsCount = useMemo(() => {
     return bookmarks.reduce((acc, b) => acc + (b.highlights?.length || 0), 0);
   }, [bookmarks]);
+
+  const folderInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isCreatingFolder) {
+      folderInputRef.current?.focus();
+    }
+  }, [isCreatingFolder]);
 
   useEffect(() => {
     loadBookmarks();
@@ -165,6 +174,7 @@ const App = () => {
     if (folderBookmarks.length === 0) return;
 
     try {
+      // @ts-ignore
       const tabIds = await Promise.all(
         // @ts-ignore
         folderBookmarks.map(b => chrome.tabs.create({ url: b.url, active: false }).then(t => t.id))
@@ -173,9 +183,9 @@ const App = () => {
       const validTabIds = tabIds.filter(id => id !== undefined) as number[];
       if (validTabIds.length > 0) {
         // @ts-ignore
-        const groupId = await chrome.tabs.group({ tabIds: validTabIds as [number, ...number[]] });
+        const group = await chrome.tabs.group({ tabIds: validTabIds as [number, ...number[]] });
         // @ts-ignore
-        await chrome.tabGroups.update(groupId, { 
+        await chrome.tabGroups.update(group, { 
           title: folderName,
           color: 'blue'
         });
@@ -524,6 +534,7 @@ const App = () => {
               {isCreatingFolder && (
                 <div className="flex gap-4 items-center animate-in fade-in slide-in-from-top-2 p-6 bg-zinc-900/50 border border-zinc-800 rounded-2xl">
                   <input 
+                    ref={folderInputRef}
                     type="text" 
                     placeholder="Folder name..."
                     value={newFolderName}
@@ -684,14 +695,19 @@ const App = () => {
 
                     {bookmark.highlights && bookmark.highlights.length > 0 && (
                       <div className="mb-6 space-y-3 border-l-2 border-indigo-500/30 pl-4 py-1">
-                        {bookmark.highlights!.slice(0, 2).map((h, i) => (
-                          <div key={i} className="text-xs text-zinc-400 leading-normal line-clamp-2 italic relative">
+                        {(expandedHighlights[bookmark._id] ? bookmark.highlights : bookmark.highlights.slice(0, 2)).map((h, i) => (
+                          <div key={i} className="text-xs text-zinc-400 leading-normal italic relative">
                             "{h}"
-                            {i === 0 && bookmark.highlights!.length > 2 && (
-                               <span className="text-[10px] text-indigo-500 ml-1 font-bold">+{bookmark.highlights!.length - 2} more</span>
-                            )}
                           </div>
                         ))}
+                        {bookmark.highlights!.length > 2 && (
+                          <button 
+                            onClick={() => setExpandedHighlights(prev => ({ ...prev, [bookmark._id]: !prev[bookmark._id] }))}
+                            className="text-[10px] text-indigo-500 font-bold hover:text-indigo-400 transition-colors uppercase tracking-widest mt-1"
+                          >
+                            {expandedHighlights[bookmark._id] ? 'Show less' : `+${bookmark.highlights!.length - 2} more`}
+                          </button>
+                        )}
                       </div>
                     )}
 
