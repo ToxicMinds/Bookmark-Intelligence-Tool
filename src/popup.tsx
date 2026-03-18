@@ -223,13 +223,22 @@ const App = () => {
                   </div>
 
                   {status === 'idle' && (
-                    <button 
-                      onClick={() => handleSave()}
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white py-3.5 rounded-xl font-bold shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 group"
-                    >
-                      Analyze & Save Page
-                      <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                    </button>
+                    <div className="space-y-4">
+                      <button 
+                        onClick={() => handleSave()}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white py-3.5 rounded-xl font-bold shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 group"
+                      >
+                        Analyze & Save Page
+                        <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                      </button>
+                      <button 
+                        onClick={openDashboard}
+                        className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-400 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-zinc-800 transition-all flex items-center justify-center gap-2 group"
+                      >
+                        Full Screen Vault
+                        <ExternalLink size={12} className="opacity-50 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -348,7 +357,7 @@ const App = () => {
           <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Local Engine Online</span>
         </div>
         <div className="flex gap-4">
-          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-700">v0.1.7</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-700">v0.4.1</span>
         </div>
       </div>
     </div>

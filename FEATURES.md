@@ -45,3 +45,9 @@
 - **Monthly**: $1.99 — The Knowledge Worker.
 - **Yearly**: $14.99 — The Professional Researcher.
 - **Lifetime**: $49.99 — The Eternal Second Brain.
+
+---
+
+## 🛠 UX & Navigation (v0.4.1)
+- **Universal Access**: "Open Full Screen Vault" is now accessible from both Save and Search tabs in the popup.
+- **Hosted Intelligence**: Professional documentation and sync guides are now hosted externally for a cleaner brand experience.
