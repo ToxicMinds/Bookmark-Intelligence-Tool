@@ -18,9 +18,9 @@ class LicenseService {
   getLicenseStatus(): LicenseStatus {
     return {
       tier: this.currentTier,
-      priceMonthly: '$0.89',
-      priceYearly: '$4.99',
-      priceLifetime: '$7.99'
+      priceMonthly: '$1.99',
+      priceYearly: '$14.99',
+      priceLifetime: '$49.99'
     };
   }
 
@@ -37,9 +37,9 @@ class LicenseService {
   async openCheckout(plan: 'monthly' | 'yearly' | 'lifetime') {
     // In production, these would be your real LemonSqueezy checkout URLs
     const checkoutUrls = {
-      monthly: 'https://vault.lemonsqueezy.com/checkout/buy/monthly-plan',
-      yearly: 'https://vault.lemonsqueezy.com/checkout/buy/yearly-plan',
-      lifetime: 'https://vault.lemonsqueezy.com/checkout/buy/lifetime-plan'
+      monthly: 'https://vault.lemonsqueezy.com/checkout/buy/monthly-premium',
+      yearly: 'https://vault.lemonsqueezy.com/checkout/buy/yearly-premium',
+      lifetime: 'https://vault.lemonsqueezy.com/checkout/buy/lifetime-premium'
     };
     
     window.open(checkoutUrls[plan], '_blank');

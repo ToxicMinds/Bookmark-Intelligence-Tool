@@ -240,6 +240,16 @@ const App = () => {
                       </button>
                     </div>
                   )}
+
+                  {status === 'exists' && (
+                    <button 
+                      onClick={openDashboard}
+                      className="w-full bg-zinc-900/50 hover:bg-zinc-900 text-indigo-400 py-3.5 rounded-xl font-bold border border-indigo-500/20 transition-all flex items-center justify-center gap-2 group"
+                    >
+                      Open Full Screen Vault
+                      <ExternalLink size={16} className="group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
                 </div>
               )}
 
