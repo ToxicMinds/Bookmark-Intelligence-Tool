@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Brain Vault",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "description": "The AI-Powered Intelligence Layer for your Browser. Save Highlights, Semantic Search, Reader Mode, and Private E2EE Sync.",
   "permissions": ["storage", "activeTab", "scripting", "contextMenus", "sidePanel", "tabs", "tabGroups", "identity"],
   "action": {

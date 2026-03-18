@@ -408,7 +408,7 @@ const App = () => {
                   <Download size={14} />
                   Export JSON
                 </button>
-                <span className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] font-black text-zinc-500 uppercase tracking-widest">v0.4.7</span>
+                <span className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] font-black text-zinc-500 uppercase tracking-widest">v0.4.8</span>
               </div>
             </div>
             
@@ -450,6 +450,7 @@ const App = () => {
                         </div>
                         <div className="flex items-center gap-3 p-4 bg-zinc-800/20 border border-zinc-800/30 rounded-2xl">
                           <Shield size={18} className="text-zinc-600" />
+                          <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.4.8</span>
                           <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Privacy Mode Active</p>
                         </div>
                       </div>
