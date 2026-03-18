@@ -378,113 +378,140 @@ const App = () => {
                     </div>
                     <div className="flex bg-zinc-950 p-1.5 rounded-2xl border border-zinc-800/50 self-start">
                       <button 
+                         onClick={() => handleUpdateSyncConfig({ mode: 'none' })}
+                         className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${syncConfig.mode === 'none' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      >Local</button>
+                      <button 
                          onClick={() => handleUpdateSyncConfig({ mode: 'native' })}
                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${syncConfig.mode === 'native' ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
-                      >Native</button>
-                      <button 
-                        onClick={() => handleUpdateSyncConfig({ mode: 'traditional' })}
-                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${syncConfig.mode === 'traditional' ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
-                      >Cloud</button>
+                      >Chrome</button>
                       <button 
                         onClick={() => handleUpdateSyncConfig({ mode: 'decentralized' })}
-                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${syncConfig.mode === 'decentralized' ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
-                      >E2EE</button>
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${syncConfig.mode === 'decentralized' || syncConfig.mode === 'traditional' ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      >Advanced</button>
                     </div>
                   </div>
 
-                  <div className="min-h-[220px]">
+                  <div className="min-h-[200px]">
+                    {syncConfig.mode === 'none' && (
+                      <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
+                        <div className="p-6 bg-zinc-950 border border-zinc-800 rounded-2xl">
+                          <p className="text-zinc-400 text-sm leading-relaxed">
+                            **Local Only**: Your memories stay on this device. No data ever leaves your computer. 
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3 p-4 bg-zinc-800/20 border border-zinc-800/30 rounded-2xl">
+                          <ShieldCheck size={18} className="text-zinc-600" />
+                          <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Privacy Mode Active</p>
+                        </div>
+                      </div>
+                    )}
+
                     {syncConfig.mode === 'native' && (
                       <div className="space-y-6 animate-in fade-in slide-in-from-top-4">
                         <div className="p-6 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl">
                           <p className="text-zinc-400 text-sm leading-relaxed mb-4">
-                            **Essentials Sync**: Frictionless cross-device sync using your standard Google Chrome profile. 
+                            **Chrome Cloud (Essentials)**: Zero-config sync using your standard Google Chrome profile. 
                           </p>
                           <ul className="text-xs text-zinc-500 space-y-2">
-                            <li className="flex items-center gap-2">• No setup or passwords needed</li>
-                            <li className="flex items-center gap-2">• Limited to most recent 100 memories</li>
+                            <li className="flex items-center gap-2">• Syncs automatically across all signed-in devices</li>
+                            <li className="flex items-center gap-2">• Limited to most recent 100 memories (100KB cap)</li>
                             <li className="flex items-center gap-2">• Perfect for light everyday use</li>
                           </ul>
                         </div>
                         <div className="flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
                           <Cloud className="text-emerald-500" size={18} />
-                          <p className="text-xs font-bold text-emerald-400">Native Sync Active via Chrome</p>
+                          <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Chrome Cloud Active</p>
                         </div>
                       </div>
                     )}
 
-                    {syncConfig.mode === 'decentralized' && (
+                    {(syncConfig.mode === 'decentralized' || syncConfig.mode === 'traditional') && (
                       <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                        <p className="text-zinc-400 text-sm leading-relaxed">
-                          **Holy Grail Sync**: Data is encrypted locally and mirrored to your private Google Drive App Data folder. Zero-server reliance.
-                        </p>
-                        <div>
-                          <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2">E2EE Master Password</label>
-                          <div className="flex gap-2">
-                            <input 
-                              type="password" 
-                              placeholder="••••••••••••" 
-                              value={masterPassword}
-                              onChange={(e) => setMasterPassword(e.target.value)}
-                              className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50" 
-                            />
-                            <button 
-                              onClick={handleSetMasterPassword}
-                              className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
-                            >Set Key</button>
-                          </div>
-                        </div>
-                        <div className="pt-4 border-t border-zinc-800/50">
+                        <div className="flex gap-2 p-1 bg-zinc-950 rounded-xl border border-zinc-800 w-fit mb-4">
                           <button 
-                            disabled={license.tier === 'free'}
-                            onClick={handleSyncPush}
-                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-30 shadow-xl shadow-indigo-600/20"
-                          >
-                            {isSyncing ? 'Synchronizing...' : 'Backup to Google Drive'}
-                          </button>
-                          {license.tier === 'free' && <p className="text-[10px] text-zinc-600 text-center mt-3 font-bold uppercase tracking-widest">Premium subscription required for GDrive Backup</p>}
-                        </div>
-                      </div>
-                    )}
-
-                    {syncConfig.mode === 'traditional' && (
-                      <div className="space-y-6 animate-in fade-in slide-in-from-left-4">
-                        <p className="text-zinc-400 text-sm leading-relaxed">
-                          **Cloud Vault**: Real-time sync using a standard CouchDB server. Best for instant access across multiple desktop environments.
-                        </p>
-                        <div className="space-y-4">
-                          <input 
-                            type="text" 
-                            placeholder="CouchDB URL (https://.../vault)" 
-                            value={syncConfig.traditional?.url || ''}
-                            onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, url: e.target.value } })}
-                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-4 text-sm focus:outline-none focus:border-indigo-500/50" 
-                          />
-                          <div className="grid grid-cols-2 gap-4">
-                            <input 
-                              type="text" 
-                              placeholder="Username" 
-                              value={syncConfig.traditional?.user || ''}
-                              onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, user: e.target.value } })}
-                              className="bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50" 
-                            />
-                            <input 
-                              type="password" 
-                              placeholder="Password" 
-                              value={syncConfig.traditional?.pass || ''}
-                              onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, pass: e.target.value } })}
-                              className="bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50" 
-                            />
-                          </div>
+                            onClick={() => handleUpdateSyncConfig({ mode: 'decentralized' })}
+                            className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${syncConfig.mode === 'decentralized' ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}
+                          >GDrive (E2EE)</button>
                           <button 
                             onClick={() => handleUpdateSyncConfig({ mode: 'traditional' })}
-                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-600/20"
-                          >Connect Cloud Vault</button>
+                            className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${syncConfig.mode === 'traditional' ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}
+                          >CouchDB (Pro)</button>
                         </div>
+
+                        {syncConfig.mode === 'decentralized' ? (
+                          <div className="space-y-4">
+                            <p className="text-zinc-400 text-sm leading-relaxed">
+                              **Privacy-First E2EE**: Data is encrypted locally and mirrored to your Google Drive App Data folder. Zero-knowledge security.
+                            </p>
+                            <div>
+                              <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2">E2EE Master Password</label>
+                              <div className="flex gap-2">
+                                <input 
+                                  type="password" 
+                                  placeholder="Your private encryption key..." 
+                                  value={masterPassword}
+                                  onChange={(e) => setMasterPassword(e.target.value)}
+                                  className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50" 
+                                />
+                                <button 
+                                  onClick={handleSetMasterPassword}
+                                  className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                                >Set Key</button>
+                              </div>
+                            </div>
+                            <button 
+                              disabled={license.tier === 'free'}
+                              onClick={handleSyncPush}
+                              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-30 shadow-xl shadow-indigo-600/20"
+                            >
+                              {isSyncing ? 'Synchronizing...' : 'Backup to Google Drive'}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <p className="text-zinc-400 text-sm leading-relaxed">
+                              **Cloud Vault (Advanced)**: Real-time sync via CouchDB. Best for unlimited scale and instant access.
+                            </p>
+                            <input 
+                              type="text" 
+                              placeholder="CouchDB URL (https://.../vault)" 
+                              value={syncConfig.traditional?.url || ''}
+                              onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, url: e.target.value } })}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-4 text-sm focus:outline-none focus:border-indigo-500/50" 
+                            />
+                            <div className="grid grid-cols-2 gap-4">
+                              <input 
+                                type="text" 
+                                placeholder="Username" 
+                                value={syncConfig.traditional?.user || ''}
+                                onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, user: e.target.value } })}
+                                className="bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50" 
+                              />
+                              <input 
+                                type="password" 
+                                placeholder="Password" 
+                                value={syncConfig.traditional?.pass || ''}
+                                onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, pass: e.target.value } })}
+                                className="bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50" 
+                              />
+                            </div>
+                            <button 
+                              onClick={() => handleUpdateSyncConfig({ mode: 'traditional' })}
+                              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-600/20"
+                            >Connect Cloud Vault</button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
 
-                  {syncStatus && <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest text-center mt-8 p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/10">{syncStatus}</p>}
+                  {syncStatus && (
+                    <div className="mt-8 p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/10 flex items-center justify-center gap-2">
+                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                      <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">{syncStatus}</p>
+                    </div>
+                  )}
                 </section>
 
                 <section className="p-8 bg-zinc-900/40 border border-zinc-800 rounded-3xl group">
@@ -494,7 +521,7 @@ const App = () => {
                         <BookOpen size={24} />
                       </div>
                       <div>
-                        <h2 className="text-xl font-black tracking-tight">Sync Help & Guides</h2>
+                        <h2 className="text-xl font-black tracking-tight">Sync help & Guide</h2>
                         <p className="text-xs text-zinc-500 font-medium">Learn how to configure advanced sync modes</p>
                       </div>
                     </div>
@@ -503,7 +530,7 @@ const App = () => {
                       target="_blank" 
                       rel="noreferrer"
                       className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
-                    >View Guide</a>
+                    >Open Guide</a>
                   </div>
                 </section>
 

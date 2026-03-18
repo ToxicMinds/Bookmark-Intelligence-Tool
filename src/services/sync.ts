@@ -144,7 +144,7 @@ export class SyncService {
     return new Promise((resolve) => {
       // @ts-ignore
       chrome.storage.local.get(['sync_config'], (result: any) => {
-        resolve(result?.sync_config || { mode: 'none' });
+        resolve(result?.sync_config || { mode: 'native' });
       });
     });
   }
