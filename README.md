@@ -1,16 +1,19 @@
-# 🧠 Brain Vault
+# 🧠 Brain Vault: Never Lose an Idea Again
 
-**Your Personal Intelligence Layer for the Web.**
+**The Neural Recall Layer for your Second Brain.**
 
 ![Brain Vault Promo](/promo_tile.png)
 
-Brain Vault is a premium, local-first Chrome extension that turns your scattered bookmarks into a structured, searchable knowledge base. Using state-of-the-art AI (Xenova Transformers) running entirely in your browser, it summarizes, categorizes, and indexes your digital life without ever letting your data leave your device.
+Brain Vault is a premium, local-first intelligence layer that transforms your browser into a high-fidelity retrieval system. Most people save bookmarks and never look at them again; Brain Vault allows you to **answer questions about your past self** using state-of-the-art local AI.
 
-## ✨ Resources & Guides
+## 🚀 The Recall Revolution (v0.4.0)
 
-- **[Hosted Feature Masterlist](https://ToxicMinds.github.io/Bookmark-Intelligence-Tool/)**: A high-impact showcase of everything Brain Vault can do.
-- **[Sync Intelligence Guide](https://ToxicMinds.github.io/Bookmark-Intelligence-Tool/?page=sync)**: How to configure 3-tier sync.
-- **[Marketing Strategy](./MARKETING.md)**: Our growth roadmap.
+- **🧠 Semantic Recall**: Don't search for titles. Search for *meanings* and *concepts*.
+- **💬 Neural Chat**: Ask questions directly to your vault. "What was that research I saved about lunar orbits?"
+- **✍️ Collaborative Synthesis**: The Ghost Writer helps you turn your research into professional drafts instantly.
+- **🔐 Sovereign Privacy**: AES-GCM 256-bit E2EE ensures your thoughts remain yours. No central database. No tracking.
+
+[Explore the Neural Feature Masterlist](./FEATURES.md)
 
 ## 🚀 Getting Started
 
