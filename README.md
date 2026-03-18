@@ -6,11 +6,11 @@
 
 Brain Vault is a premium, local-first Chrome extension that turns your scattered bookmarks into a structured, searchable knowledge base. Using state-of-the-art AI (Xenova Transformers) running entirely in your browser, it summarizes, categorizes, and indexes your digital life without ever letting your data leave your device.
 
-## ✨ Key Features (v0.3.5)
+## ✨ Resources & Guides
 
-- [Full Feature Masterlist](./FEATURES.md)
-- [Marketing & Growth Strategy](./MARKETING.md)
-- [Sync Architecture Guide](./SYNC_GUIDE.md)
+- **[Hosted Feature Masterlist](https://ToxicMinds.github.io/Bookmark-Intelligence-Tool/)**: A high-impact showcase of everything Brain Vault can do.
+- **[Sync Intelligence Guide](https://ToxicMinds.github.io/Bookmark-Intelligence-Tool/?page=sync)**: How to configure 3-tier sync.
+- **[Marketing Strategy](./MARKETING.md)**: Our growth roadmap.
 
 ## 🚀 Getting Started
 
