@@ -384,7 +384,7 @@ const App = () => {
                   <Download size={14} />
                   Export JSON
                 </button>
-                <span className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] font-black text-zinc-500 uppercase tracking-widest">v0.4.5</span>
+                <span className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] font-black text-zinc-500 uppercase tracking-widest">v0.4.6</span>
               </div>
             </div>
             
