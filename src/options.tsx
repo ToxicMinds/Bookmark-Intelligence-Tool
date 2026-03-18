@@ -55,6 +55,30 @@ const App = () => {
     return bookmarks.reduce((acc, b) => acc + (b.highlights?.length || 0), 0);
   }, [bookmarks]);
 
+  const [licenseKey, setLicenseKey] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [licenseError, setLicenseError] = useState('');
+
+  const handleVerifyLicense = async () => {
+    if (!licenseKey.trim()) return;
+    setIsVerifying(true);
+    setLicenseError('');
+    
+    try {
+      const success = await licenseService.verifyLicense(licenseKey);
+      if (success) {
+        setLicense(licenseService.getLicenseStatus());
+        setLicenseKey('');
+      } else {
+        setLicenseError('Invalid license key Pattern');
+      }
+    } catch (err) {
+      setLicenseError('Verification Link Failure');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   const folderInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -384,7 +408,7 @@ const App = () => {
                   <Download size={14} />
                   Export JSON
                 </button>
-                <span className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] font-black text-zinc-500 uppercase tracking-widest">v0.4.6</span>
+                <span className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] font-black text-zinc-500 uppercase tracking-widest">v0.4.7</span>
               </div>
             </div>
             
@@ -607,6 +631,27 @@ const App = () => {
                       </div>
 
                       <div className="space-y-4">
+                        <div className="space-y-4 pt-4 border-t border-indigo-500/20">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">Have a license key?</label>
+                          <div className="flex gap-2">
+                             <input 
+                              type="text" 
+                              placeholder="Enter key or bypass code..." 
+                              value={licenseKey}
+                              onChange={(e) => setLicenseKey(e.target.value)}
+                              className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-indigo-500/50" 
+                            />
+                            <button 
+                              disabled={isVerifying}
+                              onClick={handleVerifyLicense}
+                              className="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
+                            >
+                              {isVerifying ? 'Verifying...' : 'Verify'}
+                            </button>
+                          </div>
+                          {licenseError && <p className="text-[10px] text-rose-500 font-bold uppercase tracking-widest animate-pulse">{licenseError}</p>}
+                        </div>
+
                         <button 
                           onClick={() => licenseService.openCheckout('yearly').then(handleUpgrade)}
                           className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-indigo-600/30 transition-all active:scale-[0.98]"
