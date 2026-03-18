@@ -16,7 +16,9 @@ import {
   Bookmark,
   BookOpen,
   X,
-  Cloud
+  Cloud,
+  Layers,
+  Menu
 } from 'lucide-react'
 import { dbService, BookmarkDoc } from './services/db'
 import { semanticSearch } from './services/semanticSearch'
@@ -40,7 +42,7 @@ const App = () => {
   const [relatedBookmarks, setRelatedBookmarks] = useState<BookmarkDoc[]>([]);
 
   // Sync State
-  const [syncConfig, setSyncConfig] = useState<{ mode: 'decentralized' | 'traditional' | 'none', traditional?: { url: string, user: string, pass: string } }>({ mode: 'none' });
+  const [syncConfig, setSyncConfig] = useState<{ mode: 'decentralized' | 'traditional' | 'native' | 'none', traditional?: { url: string, user: string, pass: string } }>({ mode: 'none' });
   const [masterPassword, setMasterPassword] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
@@ -135,13 +137,16 @@ const App = () => {
     setLicense(licenseService.getLicenseStatus());
   };
 
-  const handleSearch = async () => {
+  const handleSearch = async (query?: string) => {
+    const q = query ?? searchQuery;
+    if (query !== undefined) setSearchQuery(q);
+    
     setIsLoading(true);
     try {
-      if (!searchQuery.trim()) {
+      if (!q.trim()) {
         await loadBookmarks();
       } else if (isSemantic && license.tier === 'premium') {
-        const results = await semanticSearch.search(searchQuery);
+        const results = await semanticSearch.search(q);
         setBookmarks(results.map(r => r.bookmark));
       } else if (isSemantic && license.tier === 'free') {
         alert('Semantic Search is a Premium feature. Upgrade to unlock!');
@@ -230,7 +235,11 @@ const App = () => {
     const newConfig = { ...syncConfig, ...updates };
     setSyncConfig(newConfig);
     await syncService.setSyncConfig(newConfig);
-    setSyncStatus(newConfig.mode === 'traditional' ? 'Traditional Sync Active' : 'Mode Switched');
+    setSyncStatus(
+      newConfig.mode === 'traditional' ? 'Traditional Sync Active' : 
+      newConfig.mode === 'native' ? 'Essentials Sync (Chrome) Enabled' :
+      'Mode Switched'
+    );
   };
 
   const folderStats = useMemo(() => {
@@ -350,162 +359,213 @@ const App = () => {
           </div>
         </div>
       </nav>
-
       <main className="pl-20 max-w-7xl mx-auto px-12 py-12">
         {activeView === 'settings' ? (
-          <div className="max-w-4xl animate-in fade-in slide-in-from-bottom-4">
-            <h1 className="text-4xl font-black tracking-tighter mb-8">Vault Settings</h1>
+          <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4">
+            <h1 className="text-4xl font-black tracking-tighter mb-12">Vault Settings</h1>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="space-y-8">
-                <section className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-3xl">
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-3">
-                      <ShieldCheck className="text-emerald-500" size={24} />
-                      <h2 className="text-xl font-bold italic underline decoration-emerald-500/20">Sync Architecture</h2>
+            <div className="space-y-10">
+                <section className="p-8 bg-zinc-900/40 border border-zinc-800 rounded-3xl shadow-2xl relative overflow-hidden">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
+                        <ShieldCheck size={28} />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-black tracking-tight">Sync Architecture</h2>
+                        <p className="text-xs text-zinc-500 font-medium">Keep your memories safe across devices</p>
+                      </div>
                     </div>
-                    <div className="flex bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+                    <div className="flex bg-zinc-950 p-1.5 rounded-2xl border border-zinc-800/50 self-start">
+                      <button 
+                         onClick={() => handleUpdateSyncConfig({ mode: 'native' })}
+                         className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${syncConfig.mode === 'native' ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      >Native</button>
                       <button 
                         onClick={() => handleUpdateSyncConfig({ mode: 'traditional' })}
-                        className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all ${syncConfig.mode === 'traditional' ? 'bg-indigo-600 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-                      >Traditional</button>
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${syncConfig.mode === 'traditional' ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      >Cloud</button>
                       <button 
                         onClick={() => handleUpdateSyncConfig({ mode: 'decentralized' })}
-                        className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all ${syncConfig.mode === 'decentralized' ? 'bg-indigo-600 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-                      >Decentralized</button>
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${syncConfig.mode === 'decentralized' ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      >E2EE</button>
                     </div>
                   </div>
 
-                  {syncConfig.mode === 'decentralized' ? (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                      <p className="text-zinc-400 text-sm leading-relaxed">
-                        **Holy Grail Sync**: Data is encrypted locally and mirrored to your private Google Drive App Data folder. Zero-server reliance.
-                      </p>
-                      <div>
-                        <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2">E2EE Master Password</label>
-                        <div className="flex gap-2">
-                          <input 
-                            type="password" 
-                            placeholder="••••••••••••" 
-                            value={masterPassword}
-                            onChange={(e) => setMasterPassword(e.target.value)}
-                            className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50" 
-                          />
-                          <button 
-                            onClick={handleSetMasterPassword}
-                            className="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-xs font-bold transition-all"
-                          >Set</button>
+                  <div className="min-h-[220px]">
+                    {syncConfig.mode === 'native' && (
+                      <div className="space-y-6 animate-in fade-in slide-in-from-top-4">
+                        <div className="p-6 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl">
+                          <p className="text-zinc-400 text-sm leading-relaxed mb-4">
+                            **Essentials Sync**: Frictionless cross-device sync using your standard Google Chrome profile. 
+                          </p>
+                          <ul className="text-xs text-zinc-500 space-y-2">
+                            <li className="flex items-center gap-2">• No setup or passwords needed</li>
+                            <li className="flex items-center gap-2">• Limited to most recent 100 memories</li>
+                            <li className="flex items-center gap-2">• Perfect for light everyday use</li>
+                          </ul>
+                        </div>
+                        <div className="flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
+                          <Cloud className="text-emerald-500" size={18} />
+                          <p className="text-xs font-bold text-emerald-400">Native Sync Active via Chrome</p>
                         </div>
                       </div>
-                      <div className="pt-4 border-t border-zinc-800">
+                    )}
+
+                    {syncConfig.mode === 'decentralized' && (
+                      <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+                        <p className="text-zinc-400 text-sm leading-relaxed">
+                          **Holy Grail Sync**: Data is encrypted locally and mirrored to your private Google Drive App Data folder. Zero-server reliance.
+                        </p>
+                        <div>
+                          <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2">E2EE Master Password</label>
+                          <div className="flex gap-2">
+                            <input 
+                              type="password" 
+                              placeholder="••••••••••••" 
+                              value={masterPassword}
+                              onChange={(e) => setMasterPassword(e.target.value)}
+                              className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50" 
+                            />
+                            <button 
+                              onClick={handleSetMasterPassword}
+                              className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                            >Set Key</button>
+                          </div>
+                        </div>
+                        <div className="pt-4 border-t border-zinc-800/50">
+                          <button 
+                            disabled={license.tier === 'free'}
+                            onClick={handleSyncPush}
+                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-30 shadow-xl shadow-indigo-600/20"
+                          >
+                            {isSyncing ? 'Synchronizing...' : 'Backup to Google Drive'}
+                          </button>
+                          {license.tier === 'free' && <p className="text-[10px] text-zinc-600 text-center mt-3 font-bold uppercase tracking-widest">Premium subscription required for GDrive Backup</p>}
+                        </div>
+                      </div>
+                    )}
+
+                    {syncConfig.mode === 'traditional' && (
+                      <div className="space-y-6 animate-in fade-in slide-in-from-left-4">
+                        <p className="text-zinc-400 text-sm leading-relaxed">
+                          **Cloud Vault**: Real-time sync using a standard CouchDB server. Best for instant access across multiple desktop environments.
+                        </p>
+                        <div className="space-y-4">
+                          <input 
+                            type="text" 
+                            placeholder="CouchDB URL (https://.../vault)" 
+                            value={syncConfig.traditional?.url || ''}
+                            onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, url: e.target.value } })}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-4 text-sm focus:outline-none focus:border-indigo-500/50" 
+                          />
+                          <div className="grid grid-cols-2 gap-4">
+                            <input 
+                              type="text" 
+                              placeholder="Username" 
+                              value={syncConfig.traditional?.user || ''}
+                              onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, user: e.target.value } })}
+                              className="bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50" 
+                            />
+                            <input 
+                              type="password" 
+                              placeholder="Password" 
+                              value={syncConfig.traditional?.pass || ''}
+                              onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, pass: e.target.value } })}
+                              className="bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50" 
+                            />
+                          </div>
+                          <button 
+                            onClick={() => handleUpdateSyncConfig({ mode: 'traditional' })}
+                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-600/20"
+                          >Connect Cloud Vault</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {syncStatus && <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest text-center mt-8 p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/10">{syncStatus}</p>}
+                </section>
+
+                <section className="p-8 bg-zinc-900/40 border border-zinc-800 rounded-3xl group">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-zinc-800 rounded-2xl flex items-center justify-center text-zinc-400 group-hover:text-indigo-400 transition-colors">
+                        <BookOpen size={24} />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-black tracking-tight">Sync Help & Guides</h2>
+                        <p className="text-xs text-zinc-500 font-medium">Learn how to configure advanced sync modes</p>
+                      </div>
+                    </div>
+                    <a 
+                      href="https://github.com/ToxicMinds/Bookmark-Intelligence-Tool/blob/main/SYNC_GUIDE.md" 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                    >View Guide</a>
+                  </div>
+                </section>
+
+                <section className="p-8 bg-gradient-to-br from-indigo-600/20 to-zinc-900/50 border border-indigo-500/30 rounded-3xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4">
+                    <div className="bg-indigo-600 text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full shadow-lg shadow-indigo-600/40">PRO</div>
+                  </div>
+                  
+                  <h2 className="text-2xl font-black mb-6">Unlock Full Intelligence</h2>
+                  
+                  {license.tier === 'premium' ? (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-3">
+                        <ShieldCheck className="text-emerald-500" />
+                        <p className="font-bold text-emerald-400">Premium Active</p>
+                      </div>
+                      <button onClick={() => licenseService.resetToFree().then(() => setLicense(licenseService.getLicenseStatus()))} className="text-xs text-zinc-600 hover:text-zinc-400 underline">Manage Subscription</button>
+                    </div>
+                  ) : (
+                    <div className="space-y-8">
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><Bookmark size={12}/></div>
+                          <p className="text-sm font-medium">Semantic AI Search (Conceptual Matching)</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><Cloud size={12}/></div>
+                          <p className="text-sm font-medium">Hybrid Sync (Cloud Vault + BYOS GDrive)</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><Brain size={12}/></div>
+                          <p className="text-sm font-medium">Advanced AI Summaries & Insights</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <button onClick={() => licenseService.openCheckout('monthly').then(handleUpgrade)} className="p-3 bg-zinc-950 border border-zinc-800 rounded-2xl hover:border-indigo-500 transition-all text-center group">
+                          <div className="text-[10px] font-black uppercase text-zinc-500 mb-1">Monthly</div>
+                          <div className="text-lg font-black">{license.priceMonthly}</div>
+                        </button>
+                        <button onClick={() => licenseService.openCheckout('yearly').then(handleUpgrade)} className="p-3 bg-zinc-950 border border-indigo-500/50 rounded-2xl hover:bg-indigo-500/10 transition-all text-center relative overflow-hidden">
+                          <div className="absolute inset-x-0 top-0 h-1 bg-indigo-500"></div>
+                          <div className="text-[10px] font-black uppercase text-indigo-400 mb-1">Yearly</div>
+                          <div className="text-lg font-black">{license.priceYearly}</div>
+                        </button>
+                        <button onClick={() => licenseService.openCheckout('lifetime').then(handleUpgrade)} className="p-3 bg-zinc-950 border border-zinc-800 rounded-2xl hover:border-indigo-500 transition-all text-center">
+                          <div className="text-[10px] font-black uppercase text-zinc-500 mb-1">Lifetime</div>
+                          <div className="text-lg font-black">{license.priceLifetime}</div>
+                        </button>
+                      </div>
+
+                      <div className="space-y-4">
                         <button 
-                          disabled={license.tier === 'free'}
-                          onClick={handleSyncPush}
-                          className="w-full bg-indigo-600/10 border border-indigo-500/20 hover:bg-indigo-500/20 text-indigo-400 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-30"
+                          onClick={() => licenseService.openCheckout('yearly').then(handleUpgrade)}
+                          className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-indigo-600/30 transition-all active:scale-[0.98]"
                         >
-                          {isSyncing ? 'Syncing...' : 'Push to My Google Drive'}
+                          Go Premium Now
                         </button>
                       </div>
                     </div>
-                  ) : (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-left-4">
-                      <p className="text-zinc-400 text-sm leading-relaxed">
-                        **Traditional Cloud Vault**: Real-time sync using a standard CouchDB server. Best for ease of use across many devices.
-                      </p>
-                      <div className="space-y-4">
-                        <input 
-                          type="text" 
-                          placeholder="CouchDB URL (e.g. https://xyz.cloudant.com/vault)" 
-                          value={syncConfig.traditional?.url || ''}
-                          onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, url: e.target.value } })}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none" 
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <input 
-                            type="text" 
-                            placeholder="Username" 
-                            value={syncConfig.traditional?.user || ''}
-                            onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, user: e.target.value } })}
-                            className="bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none" 
-                          />
-                          <input 
-                            type="password" 
-                            placeholder="Password" 
-                            value={syncConfig.traditional?.pass || ''}
-                            onChange={(e) => handleUpdateSyncConfig({ traditional: { ...syncConfig.traditional, pass: e.target.value } })}
-                            className="bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none" 
-                          />
-                        </div>
-                        <button 
-                          onClick={() => handleUpdateSyncConfig({ mode: 'traditional' })}
-                          className="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
-                        >Connect & Sync</button>
-                      </div>
-                    </div>
                   )}
-                  {syncStatus && <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest text-center mt-6">{syncStatus}</p>}
                 </section>
-
-              <section className="p-8 bg-gradient-to-br from-indigo-600/20 to-zinc-900/50 border border-indigo-500/30 rounded-3xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4">
-                  <div className="bg-indigo-600 text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full shadow-lg shadow-indigo-600/40">PRO</div>
-                </div>
-                
-                <h2 className="text-2xl font-black mb-6">Unlock Full Intelligence</h2>
-                
-                {license.tier === 'premium' ? (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-3">
-                      <ShieldCheck className="text-emerald-500" />
-                      <p className="font-bold text-emerald-400">Premium Active</p>
-                    </div>
-                    <button onClick={() => licenseService.resetToFree().then(() => setLicense(licenseService.getLicenseStatus()))} className="text-xs text-zinc-600 hover:text-zinc-400 underline">Manage Subscription</button>
-                  </div>
-                ) : (
-                  <div className="space-y-8">
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><Bookmark size={12}/></div>
-                        <p className="text-sm font-medium">Semantic AI Search (Conceptual Matching)</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><Cloud size={12}/></div>
-                        <p className="text-sm font-medium">Hybrid Sync (Cloud Vault + BYOS GDrive)</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400"><Brain size={12}/></div>
-                        <p className="text-sm font-medium">Advanced AI Summaries & Insights</p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-3">
-                      <button onClick={() => licenseService.openCheckout('monthly').then(handleUpgrade)} className="p-3 bg-zinc-950 border border-zinc-800 rounded-2xl hover:border-indigo-500 transition-all text-center group">
-                        <div className="text-[10px] font-black uppercase text-zinc-500 mb-1">Monthly</div>
-                        <div className="text-lg font-black">{license.priceMonthly}</div>
-                      </button>
-                      <button onClick={() => licenseService.openCheckout('yearly').then(handleUpgrade)} className="p-3 bg-zinc-950 border border-indigo-500/50 rounded-2xl hover:bg-indigo-500/10 transition-all text-center relative overflow-hidden">
-                        <div className="absolute inset-x-0 top-0 h-1 bg-indigo-500"></div>
-                        <div className="text-[10px] font-black uppercase text-indigo-400 mb-1">Yearly</div>
-                        <div className="text-lg font-black">{license.priceYearly}</div>
-                      </button>
-                      <button onClick={() => licenseService.openCheckout('lifetime').then(handleUpgrade)} className="p-3 bg-zinc-950 border border-zinc-800 rounded-2xl hover:border-indigo-500 transition-all text-center">
-                        <div className="text-[10px] font-black uppercase text-zinc-500 mb-1">Lifetime</div>
-                        <div className="text-lg font-black">{license.priceLifetime}</div>
-                      </button>
-                    </div>
-
-                    <div className="space-y-4">
-                      <button 
-                        onClick={() => licenseService.openCheckout('yearly').then(handleUpgrade)}
-                        className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-indigo-600/30 transition-all active:scale-[0.98]"
-                      >
-                        Go Premium Now
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </section>
-            </div>
             </div>
           </div>
         ) : (
@@ -542,105 +602,102 @@ const App = () => {
                     className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-500/50"
                   />
                   <button onClick={handleCreateFolder} className="px-4 py-2 bg-emerald-600 text-white text-xs font-black uppercase rounded-lg hover:bg-emerald-500 transition-colors">Create</button>
-                  <button onClick={() => setIsCreatingFolder(false)} className="px-4 py-2 text-zinc-500 text-xs font-black uppercase">Cancel</button>
+                  <button onClick={() => setIsCreatingFolder(false)} className="px-4 py-2 text-zinc-500 hover:text-zinc-300 text-xs font-bold transition-colors">Cancel</button>
                 </div>
               )}
 
-              {activeView === 'all' && (
-                <div className="flex gap-4 items-center animate-in fade-in slide-in-from-top-2">
-                  <div className="relative flex-1 group">
-                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-indigo-500 transition-colors" size={20} />
-                    <input 
-                      type="text" 
-                      placeholder={isSemantic ? "Search concepts and meanings (AI powered)..." : "Search titles, tags, and text content..."}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-2xl py-4 pl-14 pr-6 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all text-lg font-medium"
-                    />
-                  </div>
+              <div className="flex flex-col md:flex-row gap-4 items-center bg-zinc-900/40 p-2 rounded-2xl border border-zinc-800">
+                <div className="flex-1 relative w-full">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder={isSemantic ? "Semantic Search (Concept based)..." : "Literal Search (Title, URL, Tags)..."}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    className="w-full bg-transparent border-none rounded-xl pl-12 pr-4 py-3 text-sm focus:outline-none placeholder:text-zinc-600 font-medium" 
+                  />
+                </div>
+                <div className="flex gap-2 p-1 bg-zinc-950 rounded-xl border border-zinc-800 w-full md:w-auto">
                   <button 
-                    onClick={() => setIsSemantic(!isSemantic)}
-                    className={`flex items-center gap-3 px-6 py-4 rounded-2xl border font-bold transition-all ${
-                      isSemantic 
-                        ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" 
-                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800/50"
-                    }`}
-                  >
-                    <Brain size={20} />
-                    <div className="text-left leading-none">
-                      <div className="text-[10px] uppercase opacity-60 mb-1">{isSemantic ? "AI Search" : "Classic Mode"}</div>
-                      <div className="text-sm font-black">{isSemantic ? "Semantic" : "Keywords"}</div>
-                    </div>
-                  </button>
+                    onClick={() => { setIsSemantic(false); if (isSemantic) setSearchQuery(''); }}
+                    className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${!isSemantic ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-400'}`}
+                  >Literal</button>
+                  <button 
+                    onClick={() => { setIsSemantic(true); if (!isSemantic) setSearchQuery(''); }}
+                    className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${isSemantic ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-400'}`}
+                  >Semantic</button>
+                </div>
+              </div>
+
+              {activeView === 'categories' && (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {folderStats.map(([cat, count]) => (
+                    <button 
+                      key={cat}
+                      onClick={() => handleSearch(cat === 'General' ? '' : cat)}
+                      className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-3xl hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all group text-left relative overflow-hidden"
+                    >
+                      <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <FolderOpen size={40} />
+                      </div>
+                      <div className="text-2xl font-black mb-1">{count}</div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 group-hover:text-emerald-400 transition-colors">{cat}</div>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleOpenFolderTabs(cat); }}
+                        className="mt-4 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-tighter text-zinc-600 hover:text-white transition-colors"
+                      >
+                        <Layers size={12} /> Open All
+                      </button>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {activeView === 'tags' && (
+                <div className="flex flex-wrap gap-3">
+                  {allTags.map(([tag, count]) => (
+                    <button 
+                      key={tag}
+                      onClick={() => handleSearch(tag)}
+                      className="px-6 py-3 bg-zinc-900/30 border border-zinc-800 rounded-2xl hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all group flex items-center gap-3"
+                    >
+                      <span className="text-zinc-500 group-hover:text-indigo-400 transition-colors font-bold">#</span>
+                      <span className="font-black text-sm">{tag}</span>
+                      <span className="text-[10px] font-black text-zinc-600 bg-zinc-900 px-2 py-0.5 rounded-full">{count}</span>
+                    </button>
+                  ))}
                 </div>
               )}
             </header>
 
-            {activeView === 'categories' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12 animate-in fade-in zoom-in duration-300">
-                {folderStats.map(([cat, count]) => (
-                  <div key={cat} className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-3xl hover:border-indigo-500/40 transition-all group cursor-pointer relative overflow-hidden">
-                    <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400 mb-6 group-hover:scale-110 transition-transform">
-                      <FolderOpen size={24} />
-                    </div>
-                    <h3 className="text-xl font-bold mb-1">{cat}</h3>
-                    <p className="text-zinc-500 font-medium text-sm mb-6">{count} items</p>
-                    <button 
-                      onClick={() => handleOpenFolderTabs(cat)}
-                      className="w-full py-2 bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-widest rounded-xl border border-indigo-500/20 hover:bg-indigo-500 hover:text-white transition-all transform translate-y-20 group-hover:translate-y-0"
-                    >
-                      Open All in Tabs
-                    </button>
-                  </div>
-                ))}
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-6">
+                <h2 className="text-xl font-black tracking-tight">{activeView === 'all' ? 'All Memories' : activeView === 'categories' ? 'Folders' : activeView === 'tags' ? 'Popular Tags' : 'Search Results'}</h2>
               </div>
-            )}
-
-            {activeView === 'tags' && (
-              <div className="flex flex-wrap gap-4 mb-12 animate-in fade-in zoom-in duration-300">
-                {allTags.length > 0 ? allTags.map(([tag, count]) => (
-                  <div key={tag} className="px-6 py-4 bg-zinc-900/30 border border-zinc-800 rounded-2xl flex items-center gap-3 hover:bg-zinc-800/50 transition-colors cursor-default">
-                    <span className="text-indigo-400 font-black">#</span>
-                    <span className="font-bold">{tag}</span>
-                    <span className="text-[10px] bg-zinc-800 px-2 py-0.5 rounded text-zinc-500">{count}</span>
-                  </div>
-                )) : (
-                   <div className="w-full py-20 text-center bg-zinc-900/20 border border-dashed border-zinc-800 rounded-3xl text-zinc-600 font-bold uppercase tracking-widest">No tags generated yet</div>
-                )}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between mb-8 border-b border-zinc-900 pb-4">
-              <div className="flex gap-8">
-                <button className={`font-bold border-b-2 pb-4 transition-all ${activeView === 'all' ? 'text-zinc-100 border-indigo-500' : 'text-zinc-500 border-transparent hover:text-zinc-300'}`}>
-                  {activeView === 'all' ? 'All Memories' : activeView === 'categories' ? 'Folder Browser' : 'Tag Explorer'}
-                </button>
-              </div>
-              <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-zinc-800">
+              <div className="flex p-1 bg-zinc-950 rounded-xl border border-zinc-800">
                 <button 
                   onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-md ${viewMode === 'grid' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500"}`}
+                  className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
-                  <LayoutGrid size={18}/>
+                  <LayoutGrid size={18} />
                 </button>
                 <button 
                   onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-md ${viewMode === 'list' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500"}`}
+                  className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
-                  <ListIcon size={18}/>
+                  <Menu size={18} />
                 </button>
               </div>
             </div>
 
             {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {[1,2,3,4,5,6].map(i => (
-                  <div key={i} className="bg-zinc-900/40 border border-zinc-800/50 rounded-3xl h-64 animate-pulse"></div>
-                ))}
+              <div className="flex flex-col items-center justify-center py-32 animate-pulse">
+                <Brain className="text-indigo-500/20 mb-6" size={64} />
+                <p className="text-zinc-600 font-bold uppercase tracking-[.3em] text-xs">Accessing Neural patterns...</p>
               </div>
             ) : bookmarks.length === 0 ? (
-              <div className="py-24 text-center">
+              <div className="text-center py-24 bg-zinc-900/20 rounded-[3rem] border-2 border-dashed border-zinc-800">
                 <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-8 border border-zinc-800">
                   <FolderOpen className="text-zinc-800" size={40} />
                 </div>
@@ -711,22 +768,22 @@ const App = () => {
                       </div>
                     )}
 
-                <div className="flex flex-wrap gap-2 mb-6">
-                  {bookmark.tags && bookmark.tags.slice(0, 4).map(tag => (
-                    <span key={tag} className="text-[11px] font-bold text-zinc-400 bg-zinc-800/50 px-2 py-1 rounded-md">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
+                    <div className="flex flex-wrap gap-2 mb-6">
+                      {bookmark.tags && bookmark.tags.slice(0, 4).map(tag => (
+                        <span key={tag} className="text-[11px] font-bold text-zinc-400 bg-zinc-800/50 px-2 py-1 rounded-md">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
 
-                <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-600 uppercase tracking-widest border-t border-zinc-900/50 pt-4">
-                  <Calendar size={12} />
-                  {new Date(bookmark.createdAt).toLocaleDateString()}
-                </div>
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-600 uppercase tracking-widest border-t border-zinc-900/50 pt-4">
+                      <Calendar size={12} />
+                      {new Date(bookmark.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            )}
           </>
         )}
       </main>

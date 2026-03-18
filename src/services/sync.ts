@@ -140,7 +140,7 @@ export class SyncService {
   /**
    * Hybrid Sync Management
    */
-  async getSyncConfig(): Promise<{ mode: 'decentralized' | 'traditional' | 'none', traditional?: { url: string, user: string, pass: string } }> {
+  async getSyncConfig(): Promise<{ mode: 'decentralized' | 'traditional' | 'native' | 'none', traditional?: { url: string, user: string, pass: string } }> {
     return new Promise((resolve) => {
       // @ts-ignore
       chrome.storage.local.get(['sync_config'], (result: any) => {
@@ -149,15 +149,49 @@ export class SyncService {
     });
   }
 
-  async setSyncConfig(config: { mode: 'decentralized' | 'traditional' | 'none', traditional?: { url: string, user: string, pass: string } }) {
+  async setSyncConfig(config: { mode: 'decentralized' | 'traditional' | 'native' | 'none', traditional?: { url: string, user: string, pass: string } }) {
     // @ts-ignore
     await chrome.storage.local.set({ sync_config: config });
     
     if (config.mode === 'traditional' && config.traditional) {
       await dbService.syncWithRemote(config.traditional.url, config.traditional.user, config.traditional.pass);
+    } else if (config.mode === 'native') {
+      await this.syncToNative();
     } else {
       await dbService.cancelSync();
     }
+  }
+
+  /**
+   * Essentials Sync: Native Chrome Storage (Frictionless)
+   * Limited to 100 items / 100KB
+   */
+  async syncToNative() {
+    const bookmarks = await dbService.getAllBookmarks();
+    const limited = bookmarks.slice(0, 100);
+    const data = JSON.stringify(limited);
+    
+    // @ts-ignore
+    await chrome.storage.sync.set({ vault_sync: data });
+  }
+
+  async pullFromNative() {
+    return new Promise<void>((resolve) => {
+      // @ts-ignore
+      chrome.storage.sync.get(['vault_sync'], async (result: any) => {
+        if (result?.vault_sync) {
+          try {
+            const remoteBms = JSON.parse(result.vault_sync);
+            for (const b of remoteBms) {
+              await dbService.upsertBookmark(b);
+            }
+          } catch (e) {
+            console.error('Native sync pull failed:', e);
+          }
+        }
+        resolve();
+      });
+    });
   }
 
   /**
@@ -167,6 +201,8 @@ export class SyncService {
     const config = await this.getSyncConfig();
     if (config.mode === 'traditional' && config.traditional) {
       await dbService.syncWithRemote(config.traditional.url, config.traditional.user, config.traditional.pass);
+    } else if (config.mode === 'native') {
+      await this.pullFromNative();
     }
   }
 }
