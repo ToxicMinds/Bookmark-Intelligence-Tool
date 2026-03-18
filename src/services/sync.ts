@@ -168,11 +168,31 @@ export class SyncService {
    */
   async syncToNative() {
     const bookmarks = await dbService.getAllBookmarks();
-    const limited = bookmarks.slice(0, 100);
+    // Only sync the 100 most recent, and ONLY essential fields to fit in 8KB/100KB limits
+    const limited = bookmarks.slice(0, 100).map(b => ({
+      _id: b._id,
+      url: b.url,
+      title: b.title,
+      category: b.category,
+      tags: b.tags,
+      summary: b.summary ? b.summary.substring(0, 500) : undefined, // Truncate summary
+      createdAt: b.createdAt
+    }));
+    
     const data = JSON.stringify(limited);
     
-    // @ts-ignore
-    await chrome.storage.sync.set({ vault_sync: data });
+    try {
+      // @ts-ignore
+      await chrome.storage.sync.set({ vault_sync: data });
+    } catch (e) {
+      console.error('Essentials Sync failed (Quota?):', e);
+      // Fallback: Try even smaller subset if 100 is still too big
+      if (limited.length > 50) {
+        const smaller = limited.slice(0, 50);
+        // @ts-ignore
+        await chrome.storage.sync.set({ vault_sync: JSON.stringify(smaller) });
+      }
+    }
   }
 
   async pullFromNative() {

@@ -11,6 +11,12 @@ To get Brain Vault from 0 to 1,000+ users, we focus on **high-intent search**, *
     - **Hook**: "Overwhelmed by 100+ open tabs? Turn noise into knowledge."
     - **Solution**: "Brain Vault is your private, local-first AI second brain."
     - **The E2EE Advantage**: "Privacy-First E2EE Sync. Your data, your storage, your encryption key."
+    - **The Performance Edge**: "Local Neural Intelligence. Zero Latency. Zero Cloud Tracking."
+
+## 1.5 The Neural Edge (Value Prop)
+- **Zero Latency**: Since the AI models run on the user's CPU/GPU via ONNX, results are near-instant.
+- **Cost Efficiency**: No cloud-GPU overhead means we can offer lifetime access for $7.99.
+- **Privacy Supremacy**: Marketing the fact that "Not even a summary leaves your device."
 
 ## 2. Organic Growth Loops
 - **"Neural Share" Architecture**: A future path to export highlights with a "Captured via Brain Vault" signature.
