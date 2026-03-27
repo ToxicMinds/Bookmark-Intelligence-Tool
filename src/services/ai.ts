@@ -81,55 +81,117 @@ export class AIService {
 
   
   // ── Generative AI (Chrome Built-in AI) ──────────────────────────────────────
+  private async getPromptAPI(): Promise<any> {
+    // 1. Direct standard checks
+    let api = globalThis.ai?.languageModel || 
+              globalThis.ai?.assistant || 
+              (globalThis as any).navigator?.ai?.languageModel ||
+              (globalThis as any).chrome?.aiOriginTrial?.languageModel ||
+              (globalThis as any).chrome?.languageModel ||
+              (globalThis as any).model?.languageModel;
+    if (api) return { api, diagnostic: 'found_standard' };
+
+    // 2. Brute-force scanning of globalThis
+    const keys: string[] = [];
+    try {
+      for (const key in globalThis) {
+        if (typeof key === 'string' && (key.toLowerCase().includes('ai') || key.toLowerCase().includes('model'))) {
+          keys.push(key);
+          try {
+            const obj = (globalThis as any)[key];
+            if (obj && (obj.languageModel || obj.assistant || typeof obj.capabilities === 'function' || obj.createGenericSession)) {
+              return { api: obj.languageModel || obj.assistant || obj, diagnostic: `found_in_window_${key}` };
+            }
+          } catch (e) {}
+        }
+      }
+    } catch(e) {}
+
+
+    // 3. Brute-force scanning of navigator
+    if (typeof navigator !== 'undefined') {
+      for (const key in navigator) {
+        if (key.toLowerCase().includes('ai') || key.toLowerCase().includes('model')) {
+          keys.push('nav_' + key);
+          try {
+            const obj = (navigator as any)[key];
+            if (obj && (obj.languageModel || obj.assistant || typeof obj.capabilities === 'function' || obj.createGenericSession)) {
+              return { api: obj.languageModel || obj.assistant || obj, diagnostic: `found_in_nav_${key}` };
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    return { api: null, diagnostic: `missing_api_scanned_${keys.join(',')}` };
+  }
+
   async checkGenerativeAIAvailability(): Promise<string> {
-    const aiObj = globalThis.ai || (globalThis as any).navigator?.ai || (globalThis as any).chrome?.aiOriginTrial;
-    const directApi = (globalThis as any).chrome?.languageModel;
+    const { api, diagnostic } = await this.getPromptAPI();
     
-    if (!aiObj && !directApi) return 'missing_window_ai_and_navigator_ai';
-    
-    const api = directApi || aiObj?.languageModel || aiObj?.assistant;
-    if (!api) return 'missing_languageModel';
+    if (!api) return diagnostic;
     
     try {
-      const caps = await api.capabilities();
-      return caps.available; // 'readily', 'after-download', or 'no'
+      // Chrome 134+ moved to using api.capabilities() returning { available: 'readily' }
+      // Older origin trial used api.canCreateGenericSession?
+      if (typeof api.capabilities === 'function') {
+        const caps = await api.capabilities();
+        return caps.available; 
+      }
+      return 'readily'; // Fallback if it exists but capabilities() is absent
     } catch (e) {
       return `crash_${(e as Error).message}`;
     }
   }
 
   async generateText(prompt: string): Promise<string> {
-    const aiObj = globalThis.ai || (globalThis as any).navigator?.ai || (globalThis as any).chrome?.aiOriginTrial;
-    const directApi = (globalThis as any).chrome?.languageModel;
-    const api = directApi || aiObj?.languageModel || aiObj?.assistant;
+    const { api, diagnostic } = await this.getPromptAPI();
     
     if (!api) {
-      const status = await this.checkGenerativeAIAvailability();
-      throw new Error(`Generative AI not found. Diagnostic: ${status}`);
+      throw new Error(`Generative AI not found. Diagnostic: ${diagnostic}`);
     }
     
     let caps;
     try {
-      caps = await api.capabilities();
-      if (caps.available === 'no') {
-        throw new Error('Generative AI is disabled globally on this device (capabilities returned "no").');
+      if (typeof api.capabilities === 'function') {
+        caps = await api.capabilities();
+        if (caps.available === 'no') {
+          throw new Error('Generative AI is disabled globally on this device (capabilities returned "no").');
+        }
       }
     } catch (e) {
       throw new Error(`Generative AI threw error checking capabilities: ${(e as Error).message}`);
     }
 
-    const session = await api.create({
-      monitor(m: any) {
-        m.addEventListener('downloadprogress', (e: any) => {
-          console.log(`Downloading AI model: ${e.loaded} / ${e.total}`);
-        });
-      }
-    });
+    // Modern API uses create(), older ones used createGenericSession() or similar
+    let session;
+    if (typeof api.create === 'function') {
+      session = await api.create({
+        monitor(m: any) {
+          if (m?.addEventListener) {
+            m.addEventListener('downloadprogress', (e: any) => {
+              console.log(`Downloading AI model: ${e.loaded} / ${e.total}`);
+            });
+          }
+        }
+      });
+    } else if (typeof api.createTextSession === 'function') {
+      session = await api.createTextSession();
+    } else if (typeof api.createGenericSession === 'function') {
+      session = await api.createGenericSession();
+    } else {
+       throw new Error(`API object found (${diagnostic}) but no create() method available.`);
+    }
     
     try {
-      return await session.prompt(prompt);
+      if (typeof session.prompt === 'function') {
+        return await session.prompt(prompt);
+      } else if (typeof session.execute === 'function') {
+        return await session.execute(prompt);
+      }
+      return "Error: Unsupported prompt method on session";
     } finally {
-      if (typeof session.destroy === 'function') {
+      if (session && typeof session.destroy === 'function') {
         session.destroy();
       }
     }

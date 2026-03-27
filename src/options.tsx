@@ -600,6 +600,20 @@ const App = () => {
                 <div className="flex items-center gap-4 mb-6"><div className="w-12 h-12 bg-zinc-800 rounded-2xl flex items-center justify-center text-zinc-400"><FileJson size={24}/></div><div><h2 className="text-xl font-black">JSON File Import</h2><p className="text-xs text-zinc-500">Upload any <code className="text-indigo-400">[{"{url, title}"}]</code> JSON export from Firefox, Safari, or any browser.</p></div></div>
                 <label className="w-full bg-zinc-800 hover:bg-zinc-700 py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 cursor-pointer text-zinc-300 border border-zinc-700 transition-all"><Download size={18}/> Choose JSON File<input type="file" accept=".json" className="hidden" onChange={handleImportJson}/></label>
               </div>
+              
+              <div className="p-8 bg-rose-950/30 border border-rose-900/50 rounded-3xl mt-12">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 bg-rose-500/10 rounded-2xl flex items-center justify-center text-rose-500"><Trash2 size={24}/></div>
+                  <div><h2 className="text-xl font-black text-rose-500">Factory Reset</h2><p className="text-xs text-rose-400/70">Permanently wipe your local vault database. Useful for clearing out old or corrupted imports.</p></div>
+                </div>
+                <button onClick={async () => {
+                  if(window.confirm('Delete all bookmarks? This cannot be undone.')) {
+                    await (dbService as any).localDb.destroy();
+                    window.location.reload();
+                  }
+                }} className="w-full bg-rose-500/10 hover:bg-rose-500/20 shadow-lg shadow-rose-500/5 text-rose-500 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all">Clear Vault Entirely</button>
+              </div>
+              
               {importStatus&&<div className={`p-6 rounded-2xl border animate-in fade-in ${importStatus.error?"bg-rose-500/10 border-rose-500/20 text-rose-400":"bg-emerald-500/10 border-emerald-500/20 text-emerald-400"}`}>{importStatus.error?<p className="font-bold">{importStatus.error}</p>:<><p className="font-black text-lg">{importStatus.imported} memories imported</p><p className="text-sm opacity-70 mt-1">{importStatus.skipped} duplicates skipped</p></>}</div>}
             </div>
           </div>

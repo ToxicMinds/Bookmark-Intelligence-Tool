@@ -276,7 +276,7 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
           </div>
           <div className="flex items-baseline gap-2">
             <h1 className="font-black text-sm tracking-tight">Brain Vault</h1>
-            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.5.5</span>
+            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.5.6</span>
           </div>
         </div>
         <div className="flex bg-zinc-900 rounded-lg p-1">
