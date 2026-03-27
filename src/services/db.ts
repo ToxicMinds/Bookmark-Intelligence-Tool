@@ -9,6 +9,15 @@ const pouchdbFindPlugin = PouchDBFind.default || PouchDBFind;
 
 PouchDBConstructor.plugin(pouchdbFindPlugin);
 
+export interface Annotation {
+  id: string;
+  bookmarkId: string;
+  text: string;       // selected text
+  note?: string;      // user note
+  color: 'yellow' | 'indigo' | 'rose' | 'emerald';
+  createdAt: string;
+}
+
 export interface BookmarkDoc {
   _id: string;
   type: 'bookmark' | 'folder';
@@ -17,9 +26,10 @@ export interface BookmarkDoc {
   textContent?: string;
   summary?: string;
   tags?: string[];
-  category?: string; // This is the folder ID or name
+  category?: string;
   embedding?: number[];
   highlights?: string[];
+  annotations?: Annotation[];
   createdAt: string;
   lastAccessed: string;
 }
@@ -37,20 +47,12 @@ export class DatabaseService {
   private async initIndices() {
     try {
       await Promise.all([
-        this.localDb.createIndex({
-          index: { fields: ['type', 'createdAt'] }
-        }),
-        this.localDb.createIndex({
-          index: { fields: ['createdAt'] }
-        }),
-        this.localDb.createIndex({
-          index: { fields: ['type'] }
-        }),
-        this.localDb.createIndex({
-          index: { fields: ['url'] }
-        })
+        this.localDb.createIndex({ index: { fields: ['type', 'createdAt'] } }),
+        this.localDb.createIndex({ index: { fields: ['createdAt'] } }),
+        this.localDb.createIndex({ index: { fields: ['type'] } }),
+        this.localDb.createIndex({ index: { fields: ['url'] } }),
+        this.localDb.createIndex({ index: { fields: ['lastAccessed'] } }),
       ]);
-      console.log('Database indices initialized');
     } catch (err) {
       console.debug('Index initialization note:', err);
     }
@@ -70,12 +72,11 @@ export class DatabaseService {
   async getBookmarkByUrl(url: string): Promise<BookmarkDoc | null> {
     try {
       const result = await this.localDb.find({
-        selector: { type: 'bookmark', url: url },
-        limit: 1
+        selector: { type: 'bookmark', url },
+        limit: 1,
       } as any);
       return (result.docs[0] as unknown as BookmarkDoc) || null;
-    } catch (err) {
-      console.error('Failed to get bookmark by URL:', err);
+    } catch {
       return null;
     }
   }
@@ -83,12 +84,11 @@ export class DatabaseService {
   async updateBookmark(id: string, updates: Partial<BookmarkDoc>) {
     try {
       const doc = await this.localDb.get(id);
-      const updatedDoc = {
+      return this.localDb.put({
         ...doc,
         ...updates,
-        lastAccessed: new Date().toISOString()
-      };
-      return this.localDb.put(updatedDoc);
+        lastAccessed: new Date().toISOString(),
+      });
     } catch (err) {
       console.error('Failed to update bookmark:', err);
       throw err;
@@ -96,52 +96,32 @@ export class DatabaseService {
   }
 
   subscribeChanges(callback: () => void) {
-    const changes = this.localDb.changes({
-      since: 'now',
-      live: true,
-      include_docs: true
-    }).on('change', () => {
-      callback();
-    }).on('error', (err) => {
-      console.error('PouchDB changes error:', err);
-    });
-
+    const changes = this.localDb
+      .changes({ since: 'now', live: true, include_docs: true })
+      .on('change', callback)
+      .on('error', err => console.error('PouchDB changes error:', err));
     return () => changes.cancel();
   }
 
   async getFolders(): Promise<string[]> {
     try {
-      // Get all bookmarks to see current categories
-      const result = await this.localDb.find({
-        selector: { type: 'bookmark' }
-      } as any);
-      
-      const bookmarks = (result.docs as unknown) as BookmarkDoc[];
-      const categories = new Set<string>();
-      categories.add('General'); // Default folder
-      
-      bookmarks.forEach(b => {
-        if (b.category) categories.add(b.category);
-      });
+      const result = await this.localDb.find({ selector: { type: 'bookmark' } } as any);
+      const bookmarks = result.docs as unknown as BookmarkDoc[];
+      const categories = new Set<string>(['General']);
+      bookmarks.forEach(b => { if (b.category) categories.add(b.category); });
 
-      // Also get explicitly created empty folders (future proofing)
-      const folderDocs = await this.localDb.find({
-        selector: { type: 'folder' }
-      } as any);
-      
+      const folderDocs = await this.localDb.find({ selector: { type: 'folder' } } as any);
       folderDocs.docs.forEach((f: any) => categories.add(f.title));
-      
+
       return Array.from(categories).sort();
-    } catch (err) {
-      console.error('Failed to get folders:', err);
+    } catch {
       return ['General'];
     }
   }
 
   async createFolder(name: string) {
-    const id = `folder_${Date.now()}`;
     return this.localDb.put({
-      _id: id,
+      _id: `folder_${Date.now()}`,
       type: 'folder',
       title: name,
       createdAt: new Date().toISOString(),
@@ -160,14 +140,12 @@ export class DatabaseService {
     try {
       const result = await this.localDb.find({
         selector: { type: 'bookmark', createdAt: { $gt: null } },
-        sort: [{ createdAt: 'desc' }]
+        sort: [{ createdAt: 'desc' }],
       } as any);
-      return (result.docs as unknown) as BookmarkDoc[];
-    } catch (err) {
-      const result = await this.localDb.find({
-        selector: { type: 'bookmark' }
-      } as any);
-      const docs = (result.docs as unknown) as BookmarkDoc[];
+      return result.docs as unknown as BookmarkDoc[];
+    } catch {
+      const result = await this.localDb.find({ selector: { type: 'bookmark' } } as any);
+      const docs = result.docs as unknown as BookmarkDoc[];
       return docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
   }
@@ -180,93 +158,106 @@ export class DatabaseService {
   async upsertBookmark(bookmark: BookmarkDoc) {
     try {
       const existing = await this.localDb.get(bookmark._id);
-      return this.localDb.put({
-        ...existing,
-        ...bookmark,
-        _rev: existing._rev
-      });
+      return this.localDb.put({ ...existing, ...bookmark, _rev: existing._rev });
     } catch (err: any) {
-      if (err.status === 404) {
-        return this.localDb.put(bookmark);
-      }
+      if (err.status === 404) return this.localDb.put(bookmark);
       throw err;
     }
   }
 
   async searchBookmarks(query: string): Promise<BookmarkDoc[]> {
-    const bookmarks = await this.getAllBookmarks();
-    const lowerQuery = query.toLowerCase();
-    return bookmarks.filter(b => 
-      b.title.toLowerCase().includes(lowerQuery) || 
-      (b.summary && b.summary.toLowerCase().includes(lowerQuery)) ||
-      (b.tags && b.tags.some(t => t.toLowerCase().includes(lowerQuery)))
+    const all = await this.getAllBookmarks();
+    const lq = query.toLowerCase();
+    return all.filter(b =>
+      b.title.toLowerCase().includes(lq) ||
+      (b.summary && b.summary.toLowerCase().includes(lq)) ||
+      b.tags?.some(t => t.toLowerCase().includes(lq))
     );
   }
 
+  // ── Annotations ──────────────────────────────────────────────────────────────
+
+  async addAnnotation(bookmarkId: string, annotation: Omit<Annotation, 'id' | 'createdAt'>): Promise<void> {
+    const doc = await this.localDb.get(bookmarkId) as BookmarkDoc;
+    const annotations = doc.annotations || [];
+    const newAnnotation: Annotation = {
+      ...annotation,
+      id: `ann_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    await this.localDb.put({ ...doc, annotations: [...annotations, newAnnotation] });
+  }
+
+  async deleteAnnotation(bookmarkId: string, annotationId: string): Promise<void> {
+    const doc = await this.localDb.get(bookmarkId) as BookmarkDoc;
+    const annotations = (doc.annotations || []).filter(a => a.id !== annotationId);
+    await this.localDb.put({ ...doc, annotations });
+  }
+
+  // ── Related bookmarks ─────────────────────────────────────────────────────────
+
   async getRelatedBookmarks(bookmark: BookmarkDoc, limit = 4): Promise<BookmarkDoc[]> {
     if (!bookmark.embedding) return [];
-    
     const all = await this.getAllBookmarks();
-    const withEmbeddings = all.filter(b => b._id !== bookmark._id && b.embedding);
-    
-    const similarities = withEmbeddings.map(other => ({
-      doc: other,
-      score: this.cosineSimilarity(bookmark.embedding!, other.embedding!)
-    }));
+    const withEmb = all.filter(b => b._id !== bookmark._id && b.embedding);
 
-    return similarities
-      .filter(s => s.score > 0.7) // Only show reasonably related items
+    return withEmb
+      .map(b => ({ doc: b, score: this.cosineSimilarity(bookmark.embedding!, b.embedding!) }))
+      .filter(s => s.score > 0.5)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map(s => s.doc);
   }
 
+  // ── Resurfacing ───────────────────────────────────────────────────────────────
+
+  /**
+   * Returns bookmarks not accessed within 'dayThreshold' days,
+   * sorted by creation date (oldest first) to resurface forgotten gems.
+   */
+  async getDueForResurface(dayThreshold = 7, limit = 8): Promise<BookmarkDoc[]> {
+    const all = await this.getAllBookmarks();
+    const cutoff = new Date(Date.now() - dayThreshold * 24 * 60 * 60 * 1000).toISOString();
+    return all
+      .filter(b => b.lastAccessed < cutoff)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .slice(0, limit);
+  }
+
+  // ── Touch lastAccessed ────────────────────────────────────────────────────────
+
+  async touchAccessed(id: string): Promise<void> {
+    try {
+      const doc = await this.localDb.get(id) as BookmarkDoc;
+      await this.localDb.put({ ...doc, lastAccessed: new Date().toISOString() });
+    } catch { /* ignore */ }
+  }
+
   private cosineSimilarity(vecA: number[], vecB: number[]): number {
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
+    let dot = 0, normA = 0, normB = 0;
     for (let i = 0; i < vecA.length; i++) {
-      dotProduct += vecA[i] * vecB[i];
+      dot += vecA[i] * vecB[i];
       normA += vecA[i] * vecA[i];
       normB += vecB[i] * vecB[i];
     }
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 
   private syncHandler: any = null;
 
   async syncWithRemote(url: string, user?: string, pass?: string) {
-    if (this.syncHandler) {
-      this.syncHandler.cancel();
-    }
-
-    const remoteUrl = user && pass 
+    if (this.syncHandler) this.syncHandler.cancel();
+    const remoteUrl = user && pass
       ? url.replace('://', `://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@`)
       : url;
-
     const remoteDb = new PouchDBConstructor(remoteUrl);
-
-    this.syncHandler = this.localDb.sync(remoteDb, {
-      live: true,
-      retry: true
-    }).on('change', (info) => {
-      console.log('Sync change:', info);
-    }).on('paused', (err) => {
-      console.log('Sync paused', err);
-    }).on('active', () => {
-      console.log('Sync resumed');
-    }).on('error', (err) => {
-      console.error('Sync error:', err);
-    });
-
+    this.syncHandler = this.localDb.sync(remoteDb, { live: true, retry: true })
+      .on('error', err => console.error('Sync error:', err));
     return this.syncHandler;
   }
 
   async cancelSync() {
-    if (this.syncHandler) {
-      this.syncHandler.cancel();
-      this.syncHandler = null;
-    }
+    if (this.syncHandler) { this.syncHandler.cancel(); this.syncHandler = null; }
   }
 }
 

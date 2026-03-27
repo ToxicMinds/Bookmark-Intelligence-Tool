@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import ReactDOM from 'react-dom/client'
 import { 
   Search, 
@@ -12,7 +12,7 @@ import {
   Zap, 
   Download,
   Shield, 
-Check,
+  Check,
   Trash2,
   FolderOpen,
   Filter,
@@ -21,12 +21,22 @@ Check,
   X,
   Cloud,
   Layers,
-  Menu
+  Menu,
+  Network,
+  Upload,
+  RotateCcw,
+  User,
+  LogIn,
+  LogOut,
+  Clock,
+  FileJson
 } from 'lucide-react'
-import { dbService, BookmarkDoc } from './services/db'
+import { dbService, BookmarkDoc, Annotation } from './services/db'
 import { semanticSearch } from './services/semanticSearch'
 import { licenseService, LicenseStatus } from './services/license'
 import { syncService } from './services/sync'
+import { buildGraph, GraphData } from './services/graphService'
+import { authService, AuthUser } from './services/authService'
 import './index.css'
 
 const App = () => {
@@ -35,7 +45,7 @@ const App = () => {
   const [isSemantic, setIsSemantic] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [activeView, setActiveView] = useState<'all' | 'categories' | 'tags' | 'settings'>('all');
+  const [activeView, setActiveView] = useState<'all' | 'categories' | 'tags' | 'settings' | 'graph' | 'resurface' | 'import'>('all');
   
   const [folders, setFolders] = useState<string[]>(['General']);
   const [newFolderName, setNewFolderName] = useState('');
@@ -54,6 +64,29 @@ const App = () => {
   const highlightsCount = useMemo(() => {
     return bookmarks.reduce((acc, b) => acc + (b.highlights?.length || 0), 0);
   }, [bookmarks]);
+
+  // Graph
+  const [graphData, setGraphData] = useState<GraphData | null>(null);
+  const [graphLoading, setGraphLoading] = useState(false);
+  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  // Resurface
+  const [resurfaces, setResurfaces] = useState<BookmarkDoc[]>([]);
+  const [resurceLoading, setResurfaceLoading] = useState(false);
+
+  // Import
+  const [importStatus, setImportStatus] = useState<null | { imported: number; skipped: number; error?: string }>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+
+  // Auth
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPass, setAuthPass] = useState('');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
 
   const [licenseKey, setLicenseKey] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -82,10 +115,44 @@ const App = () => {
   const folderInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (isCreatingFolder) {
-      folderInputRef.current?.focus();
-    }
+    if (isCreatingFolder) folderInputRef.current?.focus();
   }, [isCreatingFolder]);
+
+  // Load auth user on mount
+  useEffect(() => {
+    authService.getUser().then(setAuthUser);
+  }, []);
+
+  // Load graph data when graph view activates
+  useEffect(() => {
+    if (activeView === 'graph' && !graphData) {
+      setGraphLoading(true);
+      dbService.getAllBookmarks().then(all => {
+        setGraphData(buildGraph(all));
+        setGraphLoading(false);
+      });
+    }
+  }, [activeView]);
+
+  // Load resurface data when that view activates
+  useEffect(() => {
+    if (activeView === 'resurface') {
+      setResurfaceLoading(true);
+      dbService.getDueForResurface(7).then(items => {
+        setResurfaces(items);
+        setResurfaceLoading(false);
+      });
+    }
+  }, [activeView]);
+
+  // Listen for import progress broadcasts
+  useEffect(() => {
+    const listener = (msg: any) => {
+      if (msg.action === 'import_progress') setImportProgress(msg.imported);
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    return () => chrome.runtime.onMessage.removeListener(listener);
+  }, []);
 
   useEffect(() => {
     loadBookmarks();
@@ -269,6 +336,58 @@ const App = () => {
     );
   };
 
+  const handleImportChrome = async () => {
+    setImportLoading(true);
+    setImportStatus(null);
+    setImportProgress(0);
+    try {
+      const result = await chrome.runtime.sendMessage({ action: 'import_chrome_bookmarks' });
+      setImportStatus(result);
+      if (result.success) loadBookmarks(true);
+    } catch (err) {
+      setImportStatus({ imported: 0, skipped: 0, error: (err as Error).message });
+    } finally { setImportLoading(false); }
+  };
+
+  const handleImportJson = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportLoading(true);
+    setImportStatus(null);
+    setImportProgress(0);
+    try {
+      const text = await file.text();
+      let items: { url: string; title: string; folder?: string }[] = [];
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        items = parsed.filter(x => x.url);
+      } else if (parsed.bookmarks) {
+        items = parsed.bookmarks.filter((x: any) => x.url);
+      }
+      const result = await chrome.runtime.sendMessage({ action: 'import_json_bookmarks', bookmarks: items });
+      setImportStatus(result);
+      if (result.success) loadBookmarks(true);
+    } catch (err) {
+      setImportStatus({ imported: 0, skipped: 0, error: 'Invalid JSON file. Expected [{url, title}] format.' });
+    } finally { setImportLoading(false); }
+  };
+
+  const handleAuthSubmit = async () => {
+    if (!authEmail || !authPass) return;
+    setAuthLoading(true);
+    setAuthError('');
+    const fn = authMode === 'signup' ? authService.signUp.bind(authService) : authService.signIn.bind(authService);
+    const { user, error } = await fn(authEmail, authPass);
+    if (error) setAuthError(error);
+    else { setAuthUser(user); setAuthEmail(''); setAuthPass(''); }
+    setAuthLoading(false);
+  };
+
+  const handleAuthSignOut = async () => {
+    await authService.signOut();
+    setAuthUser(null);
+  };
+
   const folderStats = useMemo(() => {
     const stats: Record<string, number> = {};
     folders.forEach(f => stats[f] = 0);
@@ -372,6 +491,27 @@ const App = () => {
           >
             <TagIcon size={24}/>
           </button>
+          <button 
+            onClick={() => setActiveView('graph')}
+            className={`p-3 rounded-xl transition-all ${activeView === 'graph' ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-600 hover:text-zinc-300'}`}
+            title="Knowledge Graph"
+          >
+            <Network size={24}/>
+          </button>
+          <button 
+            onClick={() => setActiveView('resurface')}
+            className={`p-3 rounded-xl transition-all ${activeView === 'resurface' ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-600 hover:text-zinc-300'}`}
+            title="Resurface"
+          >
+            <RotateCcw size={24}/>
+          </button>
+          <button 
+            onClick={() => setActiveView('import')}
+            className={`p-3 rounded-xl transition-all ${activeView === 'import' ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-600 hover:text-zinc-300'}`}
+            title="Import Bookmarks"
+          >
+            <Upload size={24}/>
+          </button>
         </div>
         <div className="mt-auto flex flex-col gap-4">
           <button 
@@ -387,6 +527,84 @@ const App = () => {
         </div>
       </nav>
       <main className="pl-20 max-w-7xl mx-auto px-12 py-12">
+
+        {activeView === 'graph' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-4xl font-black tracking-tighter mb-2">Knowledge Graph</h1>
+                <p className="text-zinc-500 font-medium">See how your memories connect — nodes by connections, coloured by cluster.</p>
+              </div>
+              <button onClick={() => { setGraphLoading(true); dbService.getAllBookmarks().then(all => { setGraphData(buildGraph(all)); setGraphLoading(false); }); }} className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold text-zinc-400 hover:text-white transition-all flex items-center gap-2"><RotateCcw size={14}/> Refresh</button>
+            </div>
+            {graphLoading && <div className="flex flex-col items-center justify-center py-32 animate-pulse"><Brain className="text-indigo-500/20 mb-6" size={64}/><p className="text-zinc-600 font-bold uppercase tracking-widest text-xs">Computing neural connections...</p></div>}
+            {!graphLoading && graphData && graphData.nodes.length === 0 && <div className="text-center py-24 bg-zinc-900/20 rounded-[3rem] border-2 border-dashed border-zinc-800"><Network className="text-zinc-800 mx-auto mb-6" size={48}/><h3 className="text-2xl font-black mb-3">No connections yet</h3><p className="text-zinc-500 max-w-sm mx-auto">Save at least 5 pages to start seeing how your knowledge connects.</p></div>}
+            {!graphLoading && graphData && graphData.nodes.length > 0 && (() => {
+              const W = 900, H = 540;
+              const cls = graphData.clusters;
+              const cc: Record<number,{x:number,y:number}> = {};
+              cls.forEach((c,i) => { const a=(i/cls.length)*Math.PI*2-Math.PI/2; cc[c.id]={x:W/2+(cls.length>1?200:0)*Math.cos(a),y:H/2+(cls.length>1?160:0)*Math.sin(a)}; });
+              const np: Record<string,{x:number,y:number}> = {};
+              const cn: Record<number,string[]> = {};
+              graphData.nodes.forEach(n => { (cn[n.cluster]=cn[n.cluster]||[]).push(n.id); });
+              Object.entries(cn).forEach(([cid,ids]) => { const c=cc[Number(cid)]; ids.forEach((id,i)=>{ const a=(i/ids.length)*Math.PI*2; const r=Math.min(70,ids.length*12); np[id]={x:c.x+r*Math.cos(a),y:c.y+r*Math.sin(a)}; }); });
+              const hov = hoveredNode ? graphData.nodes.find(n=>n.id===hoveredNode) : null;
+              return (
+                <div className="relative bg-zinc-900/30 border border-zinc-800 rounded-3xl overflow-hidden">
+                  <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{height:540}}>
+                    {graphData.edges.map((e,i)=>{ const s=np[e.source],t=np[e.target]; if(!s||!t)return null; return <line key={i} x1={s.x} y1={s.y} x2={t.x} y2={t.y} stroke="#4f46e5" strokeOpacity={e.weight*0.35} strokeWidth={e.weight*2}/>; })}
+                    {graphData.nodes.map(node=>{ const pos=np[node.id]; if(!pos)return null; const cl=cls.find(c=>c.id===node.cluster); const r=6+Math.min(node.connections*3,18); const ih=hoveredNode===node.id;
+                      return <g key={node.id} transform={`translate(${pos.x},${pos.y})`} style={{cursor:"pointer"}} onMouseEnter={()=>setHoveredNode(node.id)} onMouseLeave={()=>setHoveredNode(null)} onClick={()=>{ const b=bookmarks.find(bm=>bm._id===node.id); if(b){setSelectedReaderBookmark(b);dbService.touchAccessed(b._id);} }}>
+                        <circle r={r+(ih?4:0)} fill={cl?.color||"#4f46e5"} opacity={ih?1:0.75} style={{transition:"r 0.2s"}}/>
+                        {(node.connections>1||ih)&&<text y={-r-5} textAnchor="middle" fill="#e4e4e7" fontSize="9" fontWeight="700" style={{pointerEvents:"none"}}>{node.title.slice(0,22)}{node.title.length>22?"…":""}</text>}
+                      </g>;
+                    })}
+                  </svg>
+                  {hov&&<div className="absolute bottom-4 left-4 p-4 bg-zinc-950/95 border border-zinc-800 rounded-2xl max-w-xs"><p className="text-[10px] font-black uppercase text-indigo-400 mb-1">{hov.category||"General"} · {hov.connections} links</p><p className="font-bold text-sm mb-1 line-clamp-1">{hov.title}</p>{hov.summary&&<p className="text-xs text-zinc-400 line-clamp-2">{hov.summary}</p>}</div>}
+                  <div className="absolute top-4 right-4 flex flex-col gap-2">{cls.map(c=><div key={c.id} className="flex items-center gap-2 px-3 py-1.5 bg-zinc-950/80 rounded-full border border-zinc-800"><div className="w-3 h-3 rounded-full" style={{background:c.color}}/><span className="text-[10px] font-bold text-zinc-300">{c.label}</span></div>)}</div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {activeView === 'resurface' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4">
+            <div className="mb-10"><h1 className="text-4xl font-black tracking-tighter mb-2">Resurface</h1><p className="text-zinc-500 font-medium">Memories not revisited in 7+ days — reconnect with forgotten knowledge.</p></div>
+            {resurceLoading&&<div className="flex flex-col items-center justify-center py-32 animate-pulse"><RotateCcw className="text-indigo-500/20 mb-6 animate-spin" size={64}/><p className="text-zinc-600 font-bold uppercase tracking-widest text-xs">Scanning memory banks...</p></div>}
+            {!resurceLoading&&resurfaces.length===0&&<div className="text-center py-24 bg-zinc-900/20 rounded-[3rem] border-2 border-dashed border-zinc-800"><Clock className="text-zinc-800 mx-auto mb-6" size={48}/><h3 className="text-2xl font-black mb-3">All caught up!</h3><p className="text-zinc-500">All your memories have been visited recently. Come back soon.</p></div>}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {resurfaces.map(b => {
+                const daysAgo=Math.floor((Date.now()-new Date(b.lastAccessed).getTime())/86400000);
+                return <div key={b._id} className="group bg-zinc-900/30 border border-zinc-800 hover:border-indigo-500/30 rounded-3xl p-6 transition-all cursor-pointer hover:-translate-y-1" onClick={()=>{ setSelectedReaderBookmark(b); dbService.touchAccessed(b._id); setResurfaces(prev=>prev.filter(r=>r._id!==b._id)); }}>
+                  <div className="flex items-center justify-between mb-4"><span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-full">{b.category||"General"}</span><span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-1 rounded-full flex items-center gap-1"><Clock size={10}/> {daysAgo}d ago</span></div>
+                  <h3 className="font-bold text-base leading-snug mb-2 group-hover:text-indigo-400 transition-colors line-clamp-2">{b.title}</h3>
+                  {b.summary&&<p className="text-zinc-500 text-sm line-clamp-2">{b.summary}</p>}
+                  <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-zinc-600 uppercase tracking-widest border-t border-zinc-900/50 pt-4"><Calendar size={12}/> {new Date(b.createdAt).toLocaleDateString()}</div>
+                </div>;
+              })}
+            </div>
+          </div>
+        )}
+
+        {activeView === 'import' && (
+          <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4">
+            <div className="mb-10"><h1 className="text-4xl font-black tracking-tighter mb-2">Import Bookmarks</h1><p className="text-zinc-500 font-medium">Bring your existing bookmarks in. Duplicates are automatically skipped.</p></div>
+            <div className="space-y-6">
+              <div className="p-8 bg-zinc-900/40 border border-zinc-800 rounded-3xl">
+                <div className="flex items-center gap-4 mb-6"><div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400"><Bookmark size={24}/></div><div><h2 className="text-xl font-black">Chrome Bookmarks</h2><p className="text-xs text-zinc-500">Import all Chrome bookmarks in one click — uses native Chrome API, no file needed.</p></div></div>
+                {importLoading&&<div className="mb-4 h-2 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-indigo-600 rounded-full transition-all" style={{width:`${importProgress}%`}}/></div>}
+                <button onClick={handleImportChrome} disabled={importLoading} className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all disabled:opacity-50 shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2"><Upload size={18}/>{importLoading?"Importing...":"Import Chrome Bookmarks"}</button>
+              </div>
+              <div className="p-8 bg-zinc-900/40 border border-zinc-800 rounded-3xl">
+                <div className="flex items-center gap-4 mb-6"><div className="w-12 h-12 bg-zinc-800 rounded-2xl flex items-center justify-center text-zinc-400"><FileJson size={24}/></div><div><h2 className="text-xl font-black">JSON File Import</h2><p className="text-xs text-zinc-500">Upload any <code className="text-indigo-400">[{"{url, title}"}]</code> JSON export from Firefox, Safari, or any browser.</p></div></div>
+                <label className="w-full bg-zinc-800 hover:bg-zinc-700 py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 cursor-pointer text-zinc-300 border border-zinc-700 transition-all"><Download size={18}/> Choose JSON File<input type="file" accept=".json" className="hidden" onChange={handleImportJson}/></label>
+              </div>
+              {importStatus&&<div className={`p-6 rounded-2xl border animate-in fade-in ${importStatus.error?"bg-rose-500/10 border-rose-500/20 text-rose-400":"bg-emerald-500/10 border-emerald-500/20 text-emerald-400"}`}>{importStatus.error?<p className="font-bold">{importStatus.error}</p>:<><p className="font-black text-lg">{importStatus.imported} memories imported</p><p className="text-sm opacity-70 mt-1">{importStatus.skipped} duplicates skipped</p></>}</div>}
+            </div>
+          </div>
+        )}
+
         {activeView === 'settings' ? (
           <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-12">
@@ -413,7 +631,40 @@ const App = () => {
             </div>
             
             <div className="space-y-10">
-                <section className="p-8 bg-zinc-900/40 border border-zinc-800 rounded-3xl shadow-2xl relative overflow-hidden">
+                <section className="p-8 bg-zinc-900/40 border border-zinc-800 rounded-3xl relative overflow-hidden">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400"><User size={24}/></div>
+                  <div><h2 className="text-xl font-black tracking-tight">Account & Cloud Sync</h2><p className="text-xs text-zinc-500">Sign in to sync your vault across devices. All data is end-to-end encrypted.</p></div>
+                </div>
+                {authService.isReady ? (
+                  authUser ? (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-between">
+                        <div className="flex items-center gap-3"><div className="w-8 h-8 bg-emerald-500/20 rounded-full flex items-center justify-center"><User className="text-emerald-400" size={16}/></div><div><p className="font-bold text-emerald-400 text-sm">{authUser.email}</p><p className="text-[10px] text-emerald-600 uppercase font-bold tracking-widest">Signed In · Cloud Sync Active</p></div></div>
+                        <button onClick={handleAuthSignOut} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold text-zinc-400 hover:text-rose-400 hover:border-rose-500/30 transition-all"><LogOut size={14}/> Sign Out</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex gap-2 p-1 bg-zinc-950 rounded-xl border border-zinc-800 w-fit">
+                        <button onClick={()=>{setAuthMode('signin');setAuthError('');}} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${authMode==='signin'?'bg-zinc-800 text-white':'text-zinc-500'}`}>Sign In</button>
+                        <button onClick={()=>{setAuthMode('signup');setAuthError('');}} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${authMode==='signup'?'bg-indigo-600 text-white':'text-zinc-500'}`}>Create Account</button>
+                      </div>
+                      <input type="email" placeholder="Email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50"/>
+                      <input type="password" placeholder="Password" value={authPass} onChange={e=>setAuthPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleAuthSubmit()} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50"/>
+                      {authError&&<p className="text-xs text-rose-500 font-bold">{authError}</p>}
+                      <button onClick={handleAuthSubmit} disabled={authLoading} className="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2"><LogIn size={16}/>{authLoading?'Authenticating...':(authMode==='signup'?'Create Account':'Sign In')}</button>
+                    </div>
+                  )
+                ) : (
+                  <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
+                    <p className="text-xs text-amber-400 font-bold">⚠ Account sync not configured yet.</p>
+                    <p className="text-xs text-zinc-500 mt-1">Open <code className="text-indigo-400">src/services/authService.ts</code> and fill in your Supabase URL and anon key to enable cross-device sync.</p>
+                  </div>
+                )}
+              </section>
+
+              <section className="p-8 bg-zinc-900/40 border border-zinc-800 rounded-3xl shadow-2xl relative overflow-hidden">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">

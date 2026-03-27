@@ -1,7 +1,5 @@
 import { pipeline, env } from '@xenova/transformers';
 
-// Configure transformers to use local assets if possible, 
-// though for extension we usually download once and cache.
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 // @ts-ignore
@@ -20,6 +18,40 @@ export interface AIResult {
   embedding: number[];
 }
 
+// ── Stop-word list for better keyword extraction ──────────────────────────────
+const STOP_WORDS = new Set([
+  'about','above','after','again','against','all','and','any','are','because',
+  'been','before','being','below','between','both','but','could','did','does',
+  'doing','down','during','each','few','for','from','further','get','had',
+  'has','have','having','here','how','into','itself','just','more','most',
+  'no','nor','not','now','off','once','only','other','our','out','over',
+  'own','same','she','should','some','such','than','that','the','their',
+  'them','then','there','these','they','this','those','through','too','under',
+  'until','very','was','were','what','when','where','which','while','who',
+  'whom','why','will','with','would','you','your','also','can','its','may',
+  'might','must','need','one','said','shall','still','though','through','yet',
+]);
+
+// ── Domain → category map ─────────────────────────────────────────────────────
+const DOMAIN_CATEGORIES: Record<string, string> = {
+  'github.com': 'Development', 'gitlab.com': 'Development',
+  'stackoverflow.com': 'Development', 'dev.to': 'Development',
+  'npmjs.com': 'Development', 'docs.python.org': 'Development',
+  'developer.mozilla.org': 'Development', 'medium.com': 'Articles',
+  'substack.com': 'Articles', 'blog': 'Articles',
+  'arxiv.org': 'Research', 'scholar.google': 'Research',
+  'pubmed.ncbi': 'Research', 'nature.com': 'Research',
+  'youtube.com': 'Video', 'vimeo.com': 'Video', 'twitch.tv': 'Video',
+  'linkedin.com': 'Professional', 'twitter.com': 'Social',
+  'x.com': 'Social', 'reddit.com': 'Social', 'instagram.com': 'Social',
+  'amazon.com': 'Shopping', 'ebay.com': 'Shopping', 'etsy.com': 'Shopping',
+  'nytimes.com': 'News', 'bbc.com': 'News', 'reuters.com': 'News',
+  'theguardian.com': 'News', 'techcrunch.com': 'Tech News',
+  'wired.com': 'Tech News', 'hackernews': 'Tech News',
+  'notion.so': 'Productivity', 'airtable.com': 'Productivity',
+  'figma.com': 'Design', 'dribbble.com': 'Design', 'behance.net': 'Design',
+};
+
 export class AIService {
   private embeddingPipeline: any = null;
   private modelName = 'Xenova/all-MiniLM-L6-v2';
@@ -36,40 +68,88 @@ export class AIService {
     return Array.from(output.data);
   }
 
-  async generateMetadata(text: string, title: string, url?: string): Promise<{ summary: string; tags: string[]; category: string }> {
-    const words = text.split(/\s+/);
-    const uniqueWords = Array.from(new Set(words.filter(w => w.length > 5)));
-    const tags = uniqueWords.slice(0, 8);
-    
-    let category = "General";
-    
+  /** Extractive summarisation — picks the most content-dense sentences */
+  generateSummary(text: string, sentenceLimit = 3): string {
+    if (!text || text.length < 100) return text?.slice(0, 200) || '';
+
+    // Split into sentences
+    const sentences = text
+      .replace(/\s+/g, ' ')
+      .split(/(?<=[.!?])\s+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 40 && s.length < 400);
+
+    if (sentences.length === 0) return text.slice(0, 300);
+
+    // Score by word informativeness (non-stop, non-short words)
+    const wordFreq: Record<string, number> = {};
+    const allWords = text.toLowerCase().split(/\W+/);
+    allWords.forEach(w => {
+      if (w.length > 4 && !STOP_WORDS.has(w)) {
+        wordFreq[w] = (wordFreq[w] || 0) + 1;
+      }
+    });
+
+    const scored = sentences.map(s => {
+      const words = s.toLowerCase().split(/\W+/);
+      const score = words.reduce((acc, w) => acc + (wordFreq[w] || 0), 0) / (words.length || 1);
+      return { s, score };
+    });
+
+    return scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, sentenceLimit)
+      .map(x => x.s)
+      .join(' ');
+  }
+
+  /** Extract meaningful keywords from text */
+  extractKeywords(text: string, limit = 8): string[] {
+    const words = text.toLowerCase().split(/\W+/);
+    const freq: Record<string, number> = {};
+
+    words.forEach(w => {
+      if (w.length >= 5 && !STOP_WORDS.has(w)) {
+        freq[w] = (freq[w] || 0) + 1;
+      }
+    });
+
+    return Object.entries(freq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([word]) => word.charAt(0).toUpperCase() + word.slice(1));
+  }
+
+  async generateMetadata(
+    text: string,
+    _title: string,
+    url?: string
+  ): Promise<{ summary: string; tags: string[]; category: string }> {
+    const summary = this.generateSummary(text);
+    const tags = this.extractKeywords(text);
+
+    let category = 'General';
     if (url) {
-      if (url.includes('amazon.com') || url.includes('ebay.com') || url.includes('shopping')) {
-        category = "Shopping";
-        tags.unshift("Marketplace", "Product");
-      } else if (url.includes('linkedin.com') || url.includes('twitter.com') || url.includes('instagram.com')) {
-        category = "Social";
-        tags.unshift("Social Media", "Profile");
-      } else if (url.includes('github.com') || url.includes('stackoverflow.com')) {
-        category = "Development";
-        tags.unshift("Code", "Tech");
+      try {
+        const hostname = new URL(url).hostname.replace('www.', '');
+        for (const [domain, cat] of Object.entries(DOMAIN_CATEGORIES)) {
+          if (hostname.includes(domain)) {
+            category = cat;
+            break;
+          }
+        }
+      } catch {
+        // ignore malformed URLs
       }
     }
 
-    return {
-      summary: text.slice(0, 200) + "...", 
-      tags: Array.from(new Set(tags)),
-      category: category
-    };
+    return { summary, tags, category };
   }
 
   async processContent(text: string, title?: string, url?: string): Promise<AIResult> {
-    const embedding = await this.generateEmbedding(text);
+    const embedding = await this.generateEmbedding(text.slice(0, 4000));
     const metadata = await this.generateMetadata(text, title || '', url);
-    return {
-      ...metadata,
-      embedding
-    };
+    return { ...metadata, embedding };
   }
 }
 

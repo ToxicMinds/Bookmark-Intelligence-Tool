@@ -8,69 +8,86 @@ import { syncService } from './services/sync';
 // Initialize sync on startup
 syncService.init().catch(console.error);
 
+// ── Context menu setup ────────────────────────────────────────────────────────
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('Bookmark Intelligence Extension Installed');
+  console.log('Brain Vault v0.5.0 installed');
   chrome.contextMenus.create({
     id: 'save-highlight',
     title: 'Save Highlight to Brain Vault',
-    contexts: ['selection']
+    contexts: ['selection'],
+  });
+  chrome.contextMenus.create({
+    id: 'save-page',
+    title: 'Save Page to Brain Vault',
+    contexts: ['page'],
   });
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === 'save-highlight' && info.selectionText && tab?.id) {
-    try {
-      await handleSaveBookmark(tab.id, undefined, info.selectionText);
-    } catch (err) {
-      console.error('Context menu save failed:', err);
-    }
+  if (!tab?.id) return;
+  if (info.menuItemId === 'save-highlight' && info.selectionText) {
+    await handleSaveBookmark(tab.id, undefined, info.selectionText);
+  } else if (info.menuItemId === 'save-page') {
+    await handleSaveBookmark(tab.id);
   }
 });
 
-chrome.runtime.onMessage.addListener((request: any, _sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
+// ── Message router ────────────────────────────────────────────────────────────
+chrome.runtime.onMessage.addListener((request: any, _sender, sendResponse) => {
   if (request.action === 'save_bookmark') {
     handleSaveBookmark(request.tabId, request.folder).then(sendResponse);
-    return true; 
+    return true;
+  }
+  if (request.action === 'save_annotation') {
+    handleSaveAnnotation(request).then(sendResponse);
+    return true;
+  }
+  if (request.action === 'import_chrome_bookmarks') {
+    handleImportChromeBookmarks().then(sendResponse);
+    return true;
+  }
+  if (request.action === 'import_json_bookmarks') {
+    handleImportJsonBookmarks(request.bookmarks).then(sendResponse);
+    return true;
   }
 });
 
+// ── Content script ensure ─────────────────────────────────────────────────────
 async function ensureContentScriptLoaded(tabId: number) {
   try {
     await chrome.tabs.sendMessage(tabId, { action: 'ping' });
-  } catch (error) {
-    console.log('Injecting content script into tab:', tabId);
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['content.js']
-    });
-    await new Promise(resolve => setTimeout(resolve, 100));
+  } catch {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+    await new Promise(resolve => setTimeout(resolve, 150));
   }
 }
 
+// ── Save bookmark ─────────────────────────────────────────────────────────────
 async function handleSaveBookmark(tabId: number, userFolder?: string, highlight?: string) {
   try {
     await ensureContentScriptLoaded(tabId);
-
     const content = await chrome.tabs.sendMessage(tabId, { action: 'extract' });
     if (!content) throw new Error('Failed to extract content');
 
-    // Check if duplicate exists
     const existing = await dbService.getBookmarkByUrl(content.url);
-    
+
     if (existing && highlight) {
-      // Append highlight to existing bookmark
       const highlights = existing.highlights || [];
       if (!highlights.includes(highlight)) {
+        await dbService.addAnnotation(existing._id, {
+          bookmarkId: existing._id,
+          text: highlight,
+          color: 'yellow',
+        });
         await dbService.updateBookmark(existing._id, {
-          highlights: [...highlights, highlight]
+          highlights: [...highlights, highlight],
         });
       }
-      // Broadcast update
       chrome.runtime.sendMessage({ action: 'vault_updated' }).catch(() => {});
       return { success: true, updated: true };
     }
 
-    const aiResult = await aiService.processContent(content.textContent);
+    const aiResult = await aiService.processContent(content.textContent, content.title, content.url);
 
     await dbService.addBookmark({
       url: content.url,
@@ -80,15 +97,127 @@ async function handleSaveBookmark(tabId: number, userFolder?: string, highlight?
       tags: aiResult.tags,
       category: userFolder || aiResult.category,
       embedding: aiResult.embedding,
-      highlights: highlight ? [highlight] : []
+      highlights: highlight ? [highlight] : [],
     });
 
-    // Broadcast update to all open pages (Options, Sidebar, etc.)
     chrome.runtime.sendMessage({ action: 'vault_updated' }).catch(() => {});
-
     return { success: true };
   } catch (error) {
     console.error('Save failed:', error);
     return { success: false, error: (error as Error).message };
   }
+}
+
+// ── Save annotation (from content script highlight button) ────────────────────
+async function handleSaveAnnotation(request: { text: string; url: string; title: string }) {
+  try {
+    let bookmark = await dbService.getBookmarkByUrl(request.url);
+
+    if (!bookmark) {
+      // Auto-create a stub bookmark for the page
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const tabId = tabs[0]?.id;
+      if (tabId) {
+        await ensureContentScriptLoaded(tabId);
+        const content = await chrome.tabs.sendMessage(tabId, { action: 'extract' }).catch(() => null);
+        if (content) {
+          const aiResult = await aiService.processContent(content.textContent, content.title, content.url);
+          await dbService.addBookmark({
+            url: content.url, title: content.title,
+            textContent: content.textContent, summary: aiResult.summary,
+            tags: aiResult.tags, category: aiResult.category,
+            embedding: aiResult.embedding, highlights: [request.text],
+          });
+          const fresh = await dbService.getBookmarkByUrl(request.url);
+          bookmark = fresh;
+        }
+      }
+    }
+
+    if (bookmark) {
+      await dbService.addAnnotation(bookmark._id, {
+        bookmarkId: bookmark._id,
+        text: request.text,
+        color: 'yellow',
+      });
+      chrome.runtime.sendMessage({ action: 'vault_updated' }).catch(() => {});
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+// ── Native Chrome bookmark import ─────────────────────────────────────────────
+async function handleImportChromeBookmarks() {
+  try {
+    const tree = await chrome.bookmarks.getTree();
+    const flat: { url: string; title: string; folder: string }[] = [];
+
+    function walk(nodes: chrome.bookmarks.BookmarkTreeNode[], folder = 'Imported') {
+      for (const node of nodes) {
+        if (node.url) {
+          flat.push({ url: node.url, title: node.title || node.url, folder });
+        }
+        if (node.children) walk(node.children, node.title || folder);
+      }
+    }
+    walk(tree);
+
+    const results = await batchImport(flat);
+    chrome.runtime.sendMessage({ action: 'vault_updated' }).catch(() => {});
+    return { success: true, imported: results.imported, skipped: results.skipped };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+// ── JSON bookmark import ──────────────────────────────────────────────────────
+async function handleImportJsonBookmarks(bookmarks: { url: string; title: string; folder?: string }[]) {
+  try {
+    const results = await batchImport(bookmarks.map(b => ({ ...b, folder: b.folder || 'Imported' })));
+    chrome.runtime.sendMessage({ action: 'vault_updated' }).catch(() => {});
+    return { success: true, imported: results.imported, skipped: results.skipped };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+async function batchImport(items: { url: string; title: string; folder: string }[]) {
+  let imported = 0, skipped = 0;
+
+  for (const item of items) {
+    try {
+      if (!item.url || item.url.startsWith('javascript:') || item.url.startsWith('chrome://')) {
+        skipped++;
+        continue;
+      }
+      const existing = await dbService.getBookmarkByUrl(item.url);
+      if (existing) { skipped++; continue; }
+
+      // Minimal embedding with just the title (no live page fetch during bulk import)
+      const embedding = await aiService.generateEmbedding(item.title);
+      const metadata = await aiService.generateMetadata(item.title, item.title, item.url);
+
+      await dbService.addBookmark({
+        url: item.url,
+        title: item.title,
+        textContent: item.title,
+        summary: metadata.summary,
+        tags: metadata.tags,
+        category: item.folder || metadata.category,
+        embedding,
+        highlights: [],
+      });
+      imported++;
+
+      // Broadcast progress every 10 items
+      if (imported % 10 === 0) {
+        chrome.runtime.sendMessage({ action: 'import_progress', imported, total: items.length }).catch(() => {});
+      }
+    } catch {
+      skipped++;
+    }
+  }
+  return { imported, skipped };
 }
