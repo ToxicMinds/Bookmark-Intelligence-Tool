@@ -82,10 +82,12 @@ export class AIService {
   
   // ── Generative AI (Chrome Built-in AI) ──────────────────────────────────────
   async checkGenerativeAIAvailability(): Promise<string> {
-    const aiObj = globalThis.ai || (globalThis as any).chrome?.aiOriginTrial;
-    if (!aiObj) return 'missing_window_ai';
+    const aiObj = globalThis.ai || (globalThis as any).navigator?.ai || (globalThis as any).chrome?.aiOriginTrial;
+    const directApi = (globalThis as any).chrome?.languageModel;
     
-    const api = aiObj.languageModel || aiObj.assistant;
+    if (!aiObj && !directApi) return 'missing_window_ai_and_navigator_ai';
+    
+    const api = directApi || aiObj?.languageModel || aiObj?.assistant;
     if (!api) return 'missing_languageModel';
     
     try {
@@ -97,8 +99,10 @@ export class AIService {
   }
 
   async generateText(prompt: string): Promise<string> {
-    const aiObj = globalThis.ai || (globalThis as any).chrome?.aiOriginTrial;
-    const api = aiObj?.languageModel || aiObj?.assistant;
+    const aiObj = globalThis.ai || (globalThis as any).navigator?.ai || (globalThis as any).chrome?.aiOriginTrial;
+    const directApi = (globalThis as any).chrome?.languageModel;
+    const api = directApi || aiObj?.languageModel || aiObj?.assistant;
+    
     if (!api) {
       const status = await this.checkGenerativeAIAvailability();
       throw new Error(`Generative AI not found. Diagnostic: ${status}`);
