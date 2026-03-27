@@ -212,8 +212,13 @@ async function batchImport(items: { url: string; title: string; folder: string }
         continue;
       }
       const existing = await dbService.getBookmarkByUrl(item.url);
-      if (existing) { skipped++; continue; }
-
+      if (existing) {
+        if (item.folder && item.folder !== 'Imported' && existing.category !== item.folder) {
+          await dbService.updateBookmark(existing._id, { category: item.folder });
+        }
+        skipped++;
+        continue;
+      }
       // Minimal embedding with just the title (no live page fetch during bulk import)
       const embedding = await aiService.generateEmbedding(item.title);
       const metadata = await aiService.generateMetadata(item.title, item.title, item.url);

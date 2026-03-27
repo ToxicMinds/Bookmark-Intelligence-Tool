@@ -23,7 +23,8 @@ interface AILanguageModelSession {
 }
 declare global {
   var ai: {
-    languageModel: AILanguageModel;
+    languageModel?: AILanguageModel;
+    assistant?: AILanguageModel;
   };
 }
 
@@ -81,9 +82,10 @@ export class AIService {
   
   // ── Generative AI (Chrome Built-in AI) ──────────────────────────────────────
   async checkGenerativeAIAvailability(): Promise<'no' | 'readily' | 'after-download'> {
-    if (typeof globalThis.ai === 'undefined' || !globalThis.ai.languageModel) return 'no';
+    const api = globalThis.ai?.languageModel || globalThis.ai?.assistant;
+    if (!api) return 'no';
     try {
-      const caps = await globalThis.ai.languageModel.capabilities();
+      const caps = await api.capabilities();
       return caps.available;
     } catch {
       return 'no';
@@ -91,11 +93,24 @@ export class AIService {
   }
 
   async generateText(prompt: string): Promise<string> {
-    const status = await this.checkGenerativeAIAvailability();
-    if (status === 'no') {
+    const api = globalThis.ai?.languageModel || globalThis.ai?.assistant;
+    if (!api) {
       throw new Error('Generative AI is not enabled. Please enable chrome://flags/#prompt-api-for-extension');
     }
-    const session = await globalThis.ai.languageModel.create();
+    
+    const caps = await api.capabilities();
+    if (caps.available === 'no') {
+      throw new Error('Generative AI is disabled globally on this device.');
+    }
+
+    const session = await api.create({
+      monitor(m: any) {
+        m.addEventListener('downloadprogress', (e: any) => {
+          console.log(`Downloading AI model: ${e.loaded} / ${e.total}`);
+        });
+      }
+    });
+    
     try {
       return await session.prompt(prompt);
     } finally {

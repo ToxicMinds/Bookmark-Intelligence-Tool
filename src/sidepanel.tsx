@@ -164,7 +164,7 @@ const SidePanel = () => {
 
     try {
       const aiStatus = await aiService.checkGenerativeAIAvailability();
-      const needsContext = q.toLowerCase().includes('page') || q.toLowerCase().includes('summarize');
+      const needsContext = /page|summarize|takeaway|insight/i.test(q);
       
       let pageContext = '';
       let pageUrl = '';
@@ -296,7 +296,7 @@ ${vaultText}`);
           </div>
           <div className="flex items-baseline gap-2">
             <h1 className="font-black text-sm tracking-tight">Brain Vault</h1>
-            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.5.0</span>
+            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.5.3</span>
           </div>
         </div>
         <div className="flex bg-zinc-900 rounded-lg p-1">
