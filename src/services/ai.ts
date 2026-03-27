@@ -11,6 +11,22 @@ env.backends.onnx.wasm.numThreads = 1;
 // @ts-ignore
 env.backends.onnx.wasm.proxy = false;
 
+
+// ── Chrome Built-in AI Types ──────────────────────────────────────────────────
+interface AILanguageModel {
+  capabilities(): Promise<{ available: 'no' | 'readily' | 'after-download' }>;
+  create(options?: any): Promise<AILanguageModelSession>;
+}
+interface AILanguageModelSession {
+  prompt(text: string): Promise<string>;
+  destroy(): void;
+}
+declare global {
+  var ai: {
+    languageModel: AILanguageModel;
+  };
+}
+
 export interface AIResult {
   summary: string;
   tags: string[];
@@ -59,6 +75,31 @@ export class AIService {
   async init() {
     if (!this.embeddingPipeline) {
       this.embeddingPipeline = await pipeline('feature-extraction', this.modelName);
+    }
+  }
+
+  
+  // ── Generative AI (Chrome Built-in AI) ──────────────────────────────────────
+  async checkGenerativeAIAvailability(): Promise<'no' | 'readily' | 'after-download'> {
+    if (typeof globalThis.ai === 'undefined' || !globalThis.ai.languageModel) return 'no';
+    try {
+      const caps = await globalThis.ai.languageModel.capabilities();
+      return caps.available;
+    } catch {
+      return 'no';
+    }
+  }
+
+  async generateText(prompt: string): Promise<string> {
+    const status = await this.checkGenerativeAIAvailability();
+    if (status === 'no') {
+      throw new Error('Generative AI is not enabled. Please enable chrome://flags/#prompt-api-for-extension');
+    }
+    const session = await globalThis.ai.languageModel.create();
+    try {
+      return await session.prompt(prompt);
+    } finally {
+      session.destroy();
     }
   }
 

@@ -15,6 +15,7 @@ import {
   ChevronDown
 } from 'lucide-react'
 import { dbService, BookmarkDoc } from './services/db'
+import { aiService } from './services/ai'
 import { semanticSearch } from './services/semanticSearch'
 import './index.css'
 
@@ -153,53 +154,127 @@ const SidePanel = () => {
     setRecentBookmarks(all.slice(0, 10));
   };
 
-  // ── Brain Chat — fully semantic ─────────────────────────────────────────────
-  const handleChat = async () => {
-    if (!query.trim()) return;
-    const userQuery = query;
-    setMessages(prev => [...prev, { role: 'user', content: userQuery }]);
+    // ── Brain Chat — True Local AI ──────────────────────────────────────────────
+  const handleChat = async (directQuery?: string) => {
+    const q = typeof directQuery === 'string' ? directQuery : query;
+    if (!q.trim()) return;
+    setMessages(prev => [...prev, { role: 'user', content: q }]);
     setQuery('');
     setIsTyping(true);
 
     try {
-      const { responseText } = await semanticSearch.searchWithContext(userQuery, 5);
-      setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
+      const aiStatus = await aiService.checkGenerativeAIAvailability();
+      const needsContext = q.toLowerCase().includes('page') || q.toLowerCase().includes('summarize');
+      
+      let pageContext = '';
+      let pageUrl = '';
+      if (needsContext || aiStatus !== 'no') {
+        try {
+          // @ts-ignore
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab?.id) {
+            pageUrl = tab.url || '';
+            // @ts-ignore
+            const [{ result }] = await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: () => document.body.innerText.slice(0, 3000)
+            }) as any[];
+            pageContext = result || '';
+          }
+        } catch (e) {}
+      }
+
+      const { responseText, results } = await semanticSearch.searchWithContext(q, 3);
+      
+      if (aiStatus !== 'no') {
+        const vaultContext = results.map(r => `[Vault] ${r.bookmark.title}: ${r.bookmark.summary}`).join('\\n');
+        const prompt = `You are Brain Vault AI. Answer the user's query accurately.
+
+User Query: ${q}
+
+Current Page Content:
+${pageContext.slice(0, 2000)}
+
+Relevant Vault Memories:
+${vaultContext}
+
+Answer concisely and format your output in markdown. Use bold and bullet points.`;
+        const aiResponse = await aiService.generateText(prompt);
+        setMessages(prev => [...prev, { role: 'assistant', content: aiResponse }]);
+      } else {
+        if (needsContext) {
+           setMessages(prev => [...prev, { role: 'assistant', content: `To analyze "this page", please enable Google Chrome's Built-in AI Prompt API. Without it, I can only search your existing vault memories.
+
+**To enable:**
+1. Go to \`chrome://flags/#prompt-api-for-extension\` and enable it
+2. Go to \`chrome://flags/#optimization-guide-on-device-model\` and select Enabled BypassPerfRequirement
+3. Restart Chrome` }]);
+        } else {
+           setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
+        }
+      }
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Neural link error — ensure AI model has finished loading and try again.' }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Neural link error: ' + (err as Error).message }]);
     } finally {
       setIsTyping(false);
     }
   };
 
-  // ── Ghost Writer — prompt-aware + vault context ─────────────────────────────
+  // ── Ghost Writer — True Local AI ────────────────────────────────────────────
   const handleGhostWrite = async () => {
+    if (!ghostPrompt.trim()) return;
     setIsTyping(true);
+    setGhostDraft('Synthesizing draft with True Local AI...');
+    
     try {
+      const aiStatus = await aiService.checkGenerativeAIAvailability();
+      
       // @ts-ignore
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id) return;
+      if (!tab?.id) throw new Error('No active tab');
 
       // @ts-ignore
       const [{ result }] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: () => ({
           title: document.title,
-          meta: document.querySelector('meta[name="description"]')?.getAttribute('content') || '',
-          body: document.body.innerText.slice(0, 1200),
+          body: document.body.innerText.slice(0, 3000),
         }),
       }) as any[];
+      const ctx = result;
 
-      const ctx = result as { title: string; meta: string; body: string };
+      const { results: vaultCtx } = await semanticSearch.searchWithContext(ghostPrompt, 3);
+      const vaultText = vaultCtx.map(r => `- ${r.bookmark.title}: ${r.bookmark.summary}`).join('\\n');
 
-      // Pull vault memories related to the page title + user prompt
-      const contextQuery = [ghostPrompt, ctx.title].filter(Boolean).join(' ');
-      const { results: vaultCtx } = await semanticSearch.searchWithContext(contextQuery, 3);
-      const vaultBookmarks = vaultCtx.map(r => r.bookmark);
+      if (aiStatus !== 'no') {
+        const prompt = `You are an expert Ghost Writer. Write an email drafting the following request.
+Tone: ${ghostTone}
+Instructions: ${ghostPrompt}
 
-      const draft = buildEmailDraft(ghostTone, ghostPrompt, ctx.title, ctx.meta, ctx.body, vaultBookmarks);
-      setGhostDraft(draft);
+Context from current webpage title: ${ctx.title}
+Webpage content: ${ctx.body.slice(0,1000)}
+
+Related facts from user's vault:
+${vaultText}
+
+Write only the email draft, nothing else. Do not hallucinate data not provided in the context.`;
+        const draft = await aiService.generateText(prompt);
+        setGhostDraft(draft);
+      } else {
+        setGhostDraft(`[Generative AI currently disabled]
+
+Please enable Chrome's Built-in AI to use Ghost Writer email generation.
+
+**To enable:**
+1. Go to chrome://flags/#prompt-api-for-extension
+2. Enable the flag
+3. Restart Chrome
+
+Context found for your prompt:
+${vaultText}`);
+      }
     } catch (err) {
-      setGhostDraft('Could not access current tab. Ensure the extension has permission to read this page.');
+      setGhostDraft('Error: ' + (err as Error).message);
     } finally {
       setIsTyping(false);
     }
@@ -265,6 +340,17 @@ const SidePanel = () => {
               )}
             </div>
             <div className="p-4 bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent">
+              <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-hide pb-1">
+                {['Summarize this page', 'Key takeaways', 'Main insights'].map(hint => (
+                  <button 
+                    key={hint} 
+                    onClick={() => handleChat(hint)}
+                    className="whitespace-nowrap px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-400 hover:text-indigo-400 transition-colors"
+                  >
+                    {hint}
+                  </button>
+                ))}
+              </div>
               <div className="relative group">
                 <input
                   type="text"

@@ -148,21 +148,40 @@ async function handleSaveAnnotation(request: { text: string; url: string; title:
   }
 }
 
-// ── Native Chrome bookmark import ─────────────────────────────────────────────
-async function handleImportChromeBookmarks() {
+  async function handleImportChromeBookmarks() {
   try {
     const tree = await chrome.bookmarks.getTree();
     const flat: { url: string; title: string; folder: string }[] = [];
 
-    function walk(nodes: chrome.bookmarks.BookmarkTreeNode[], folder = 'Imported') {
+    // Root-level Chrome folder names to skip (not meaningful to users)
+    const ROOT_SKIP = new Set(['Bookmarks bar', 'Bookmarks Bar', 'Other bookmarks', 'Other Bookmarks', 'Mobile bookmarks', 'Mobile Bookmarks', '']);
+
+    function walk(nodes: chrome.bookmarks.BookmarkTreeNode[], pathSegments: string[] = []) {
       for (const node of nodes) {
         if (node.url) {
-          flat.push({ url: node.url, title: node.title || node.url, folder });
+          // Build folder path from segments (skip empty/root names)
+          const folderPath = pathSegments.filter(Boolean).join(' / ') || 'Imported';
+          flat.push({ url: node.url, title: node.title || node.url, folder: folderPath });
         }
-        if (node.children) walk(node.children, node.title || folder);
+        if (node.children) {
+          // Add this node's name to path, unless it's a root-level system folder
+          const shouldAddToPath = node.title && !ROOT_SKIP.has(node.title);
+          walk(node.children, shouldAddToPath ? [...pathSegments, node.title] : pathSegments);
+        }
       }
     }
-    walk(tree);
+
+    // Start the walk — first level is the invisible root, skip it
+    if (tree[0]?.children) {
+      for (const topLevel of tree[0].children) {
+        // Top-level folders (Bookmarks Bar, Other bookmarks) — use their name as the first path segment
+        if (topLevel.children) {
+          walk(topLevel.children, ROOT_SKIP.has(topLevel.title) ? [] : [topLevel.title]);
+        } else if (topLevel.url) {
+          flat.push({ url: topLevel.url, title: topLevel.title || topLevel.url, folder: 'Imported' });
+        }
+      }
+    }
 
     const results = await batchImport(flat);
     chrome.runtime.sendMessage({ action: 'vault_updated' }).catch(() => {});

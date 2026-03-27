@@ -23,8 +23,8 @@
 import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 
 // ── ⬇️  FILL THESE IN ────────────────────────────────────────────────────────
-const SUPABASE_URL  = 'https://YOUR_PROJECT_ID.supabase.co';  // ← replace
-const SUPABASE_ANON = 'YOUR_SUPABASE_ANON_KEY';               // ← replace
+const SUPABASE_URL  = 'https://cvswlsjvlhkmcksmwduo.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_0KWA7_DQpQ-p4biAiEOcnQ_HvO2DPQ8';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const isConfigured = !SUPABASE_URL.includes('YOUR_PROJECT') && !SUPABASE_ANON.includes('YOUR_SUPABASE');

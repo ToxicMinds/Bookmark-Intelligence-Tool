@@ -21,6 +21,11 @@ const App = () => {
     checkDuplicate();
     loadRecent();
     loadFolders();
+    chrome.storage.local.get(['lastUsedFolder'], (res) => {
+      if (res.lastUsedFolder) {
+        setSelectedFolder(res.lastUsedFolder as string);
+      }
+    });
   }, []);
 
   const checkDuplicate = async () => {
@@ -92,6 +97,7 @@ const App = () => {
       });
 
       if (response && response.success) {
+        chrome.storage.local.set({ lastUsedFolder: folderOverride || selectedFolder });
         setStatus('success');
         loadRecent();
         setTimeout(() => setActiveTab('search'), 1500);
@@ -135,6 +141,14 @@ const App = () => {
 
   const openDashboard = () => {
     chrome.runtime.openOptionsPage();
+  };
+
+  const openSidePanel = async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.windowId) {
+      chrome.sidePanel.open({ windowId: tab.windowId });
+      window.close();
+    }
   };
 
   return (
@@ -223,7 +237,7 @@ const App = () => {
                   </div>
 
                   {status === 'idle' && (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       <button 
                         onClick={() => handleSave()}
                         className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white py-3.5 rounded-xl font-bold shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 group"
@@ -231,13 +245,20 @@ const App = () => {
                         Analyze & Save Page
                         <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                       </button>
-                      <button 
-                        onClick={openDashboard}
-                        className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-400 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-zinc-800 transition-all flex items-center justify-center gap-2 group"
-                      >
-                        Full Screen Vault
-                        <ExternalLink size={12} className="opacity-50 group-hover:opacity-100 transition-opacity" />
-                      </button>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button 
+                          onClick={openSidePanel}
+                          className="bg-zinc-900 hover:bg-zinc-800 text-indigo-400 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-indigo-500/20 transition-all flex items-center justify-center gap-2"
+                        >
+                          Brain Chat
+                        </button>
+                        <button 
+                          onClick={openDashboard}
+                          className="bg-zinc-900 hover:bg-zinc-800 text-zinc-400 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-zinc-800 transition-all flex items-center justify-center gap-2"
+                        >
+                          Full Vault
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -367,7 +388,7 @@ const App = () => {
           <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Local Engine Online</span>
         </div>
         <div className="flex gap-4">
-          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-700">v0.4.8</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-700">v0.5.2</span>
         </div>
       </div>
     </div>
