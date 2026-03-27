@@ -81,26 +81,37 @@ export class AIService {
 
   
   // ── Generative AI (Chrome Built-in AI) ──────────────────────────────────────
-  async checkGenerativeAIAvailability(): Promise<'no' | 'readily' | 'after-download'> {
-    const api = globalThis.ai?.languageModel || globalThis.ai?.assistant;
-    if (!api) return 'no';
+  async checkGenerativeAIAvailability(): Promise<string> {
+    const aiObj = globalThis.ai || (globalThis as any).chrome?.aiOriginTrial;
+    if (!aiObj) return 'missing_window_ai';
+    
+    const api = aiObj.languageModel || aiObj.assistant;
+    if (!api) return 'missing_languageModel';
+    
     try {
       const caps = await api.capabilities();
-      return caps.available;
-    } catch {
-      return 'no';
+      return caps.available; // 'readily', 'after-download', or 'no'
+    } catch (e) {
+      return `crash_${(e as Error).message}`;
     }
   }
 
   async generateText(prompt: string): Promise<string> {
-    const api = globalThis.ai?.languageModel || globalThis.ai?.assistant;
+    const aiObj = globalThis.ai || (globalThis as any).chrome?.aiOriginTrial;
+    const api = aiObj?.languageModel || aiObj?.assistant;
     if (!api) {
-      throw new Error('Generative AI is not enabled. Please enable chrome://flags/#prompt-api-for-extension');
+      const status = await this.checkGenerativeAIAvailability();
+      throw new Error(`Generative AI not found. Diagnostic: ${status}`);
     }
     
-    const caps = await api.capabilities();
-    if (caps.available === 'no') {
-      throw new Error('Generative AI is disabled globally on this device.');
+    let caps;
+    try {
+      caps = await api.capabilities();
+      if (caps.available === 'no') {
+        throw new Error('Generative AI is disabled globally on this device (capabilities returned "no").');
+      }
+    } catch (e) {
+      throw new Error(`Generative AI threw error checking capabilities: ${(e as Error).message}`);
     }
 
     const session = await api.create({
@@ -114,7 +125,9 @@ export class AIService {
     try {
       return await session.prompt(prompt);
     } finally {
-      session.destroy();
+      if (typeof session.destroy === 'function') {
+        session.destroy();
+      }
     }
   }
 

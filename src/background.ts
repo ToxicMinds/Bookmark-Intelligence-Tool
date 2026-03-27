@@ -219,17 +219,19 @@ async function batchImport(items: { url: string; title: string; folder: string }
         skipped++;
         continue;
       }
-      // Minimal embedding with just the title (no live page fetch during bulk import)
-      const embedding = await aiService.generateEmbedding(item.title);
-      const metadata = await aiService.generateMetadata(item.title, item.title, item.url);
+      // Skip heavy AI embedding during bulk import to prevent Service Worker timeouts/OOM.
+      // Search logic will fallback to exact-match if embedding is empty, or we can queue it later.
+      const embedding: number[] = [];
+      const summary = '';
+      const tags: string[] = [];
 
       await dbService.addBookmark({
         url: item.url,
         title: item.title,
         textContent: item.title,
-        summary: metadata.summary,
-        tags: metadata.tags,
-        category: item.folder || metadata.category,
+        summary,
+        tags,
+        category: item.folder && item.folder !== 'Imported' ? item.folder : 'Uncategorized',
         embedding,
         highlights: [],
       });

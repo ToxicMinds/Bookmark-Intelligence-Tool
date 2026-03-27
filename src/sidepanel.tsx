@@ -246,32 +246,12 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
       const { results: vaultCtx } = await semanticSearch.searchWithContext(ghostPrompt, 3);
       const vaultText = vaultCtx.map(r => `- ${r.bookmark.title}: ${r.bookmark.summary}`).join('\\n');
 
-      if (aiStatus !== 'no') {
-        const prompt = `You are an expert Ghost Writer. Write an email drafting the following request.
-Tone: ${ghostTone}
-Instructions: ${ghostPrompt}
-
-Context from current webpage title: ${ctx.title}
-Webpage content: ${ctx.body.slice(0,1000)}
-
-Related facts from user's vault:
-${vaultText}
-
-Write only the email draft, nothing else. Do not hallucinate data not provided in the context.`;
+      if (aiStatus === 'readily' || aiStatus === 'after-download') {
+        const prompt = `You are an expert Ghost Writer. Write an email drafting the following request.\nTone: ${ghostTone}\nInstructions: ${ghostPrompt}\n\nContext from current webpage title: ${ctx.title}\nWebpage content: ${ctx.body.slice(0,1000)}\n\nRelated facts from user's vault:\n${vaultText}\n\nWrite only the email draft, nothing else. Do not hallucinate data not provided in the context.`;
         const draft = await aiService.generateText(prompt);
         setGhostDraft(draft);
       } else {
-        setGhostDraft(`[Generative AI currently disabled]
-
-Please enable Chrome's Built-in AI to use Ghost Writer email generation.
-
-**To enable:**
-1. Go to chrome://flags/#prompt-api-for-extension
-2. Enable the flag
-3. Restart Chrome
-
-Context found for your prompt:
-${vaultText}`);
+        setGhostDraft(`[Generative AI currently disabled]\n\nStatus: ${aiStatus}\n\nPlease enable Chrome's Built-in AI to use Ghost Writer email generation.\n\n**To enable:**\n1. Go to chrome://flags/#prompt-api-for-extension\n2. Enable the flag\n3. Restart Chrome\n\nContext found for your prompt:\n${vaultText}`);
       }
     } catch (err) {
       setGhostDraft('Error: ' + (err as Error).message);
@@ -296,7 +276,7 @@ ${vaultText}`);
           </div>
           <div className="flex items-baseline gap-2">
             <h1 className="font-black text-sm tracking-tight">Brain Vault</h1>
-            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.5.3</span>
+            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.5.4</span>
           </div>
         </div>
         <div className="flex bg-zinc-900 rounded-lg p-1">
