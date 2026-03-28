@@ -148,6 +148,7 @@ export class AIService {
     let session;
     if (typeof api.create === 'function') {
       session = await api.create({
+        expectedOutputLanguages: ['en'],
         monitor(m: any) {
           if (m?.addEventListener) {
             m.addEventListener('downloadprogress', (e: any) => {

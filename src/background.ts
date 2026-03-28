@@ -161,25 +161,28 @@ import { APP_VERSION, DEFAULT_FOLDER, ROOT_SKIP_FOLDERS } from './constants';
     const flat: { url: string; title: string; folder: string }[] = [];
     const ROOT_SKIP = new Set(ROOT_SKIP_FOLDERS);
 
-    function walk(nodes: chrome.bookmarks.BookmarkTreeNode[], pathSegments: string[] = []) {
-      for (const node of nodes) {
-        if (node.url) {
-          // If no folder path was built, put it in General
-          const folderPath = pathSegments.join(' / ') || DEFAULT_FOLDER;
-          flat.push({ url: node.url, title: node.title || node.url, folder: folderPath });
-        }
-        if (node.children && node.children.length > 0) {
-          // If this node is NOT a system folder to skip, we add its title to the path
-          const isSystemFolder = node.title && ROOT_SKIP.has(node.title);
-          const nextPath = isSystemFolder ? pathSegments : [...pathSegments, node.title].filter(Boolean);
-          walk(node.children, nextPath);
-        }
-      }
+    // Stack-based, non-recursive walk to prevent closure overlap and memory limits
+    const stack: { nodes: chrome.bookmarks.BookmarkTreeNode[], path: string[] }[] = [];
+    if (tree[0]?.children) {
+      stack.push({ nodes: tree[0].children, path: [] });
     }
 
-    // Chrome bookmark tree[0] is always the invisible root
-    if (tree[0]?.children) {
-      walk(tree[0].children, []);
+    while (stack.length > 0) {
+      const { nodes, path } = stack.pop()!;
+      for (const node of nodes) {
+        if (node.url) {
+          flat.push({ 
+            url: node.url, 
+            title: node.title || node.url, 
+            folder: path.join(' / ') || DEFAULT_FOLDER 
+          });
+        }
+        if (node.children && node.children.length > 0) {
+          const isSystem = node.title && ROOT_SKIP.has(node.title);
+          const nextPath = isSystem ? path : [...path, node.title].filter(Boolean);
+          stack.push({ nodes: node.children, path: nextPath });
+        }
+      }
     }
 
     const results = await batchImport(flat);

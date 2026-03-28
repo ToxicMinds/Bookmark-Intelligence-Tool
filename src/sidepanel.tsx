@@ -126,7 +126,7 @@ const SidePanel = () => {
 
   // Chat state
   const [query, setQuery] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const [isChatTyping, setIsChatTyping] = useState(false);
   const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([
     { role: 'assistant', content: 'I\'m your Brain Vault assistant. Ask me anything about your saved memories — I use semantic understanding to find what you mean, not just what you typed.' }
   ]);
@@ -137,6 +137,7 @@ const SidePanel = () => {
 
   // Ghost Writer state
   const [ghostDraft, setGhostDraft]   = useState('');
+  const [isGhostTyping, setIsGhostTyping] = useState(false);
   const [ghostTone, setGhostTone]     = useState<Tone>('professional');
   const [ghostPrompt, setGhostPrompt] = useState('');
   const [isCopying, setIsCopying]     = useState(false);
@@ -162,10 +163,11 @@ const SidePanel = () => {
     if (!q.trim()) return;
     setMessages(prev => [...prev, { role: 'user', content: q }]);
     setQuery('');
-    setIsTyping(true);
+    setIsChatTyping(true);
+    let aiStatus = 'unknown';
 
     try {
-      const aiStatus = await aiService.checkGenerativeAIAvailability();
+      aiStatus = await aiService.checkGenerativeAIAvailability();
       const needsContext = /page|summarize|takeaway|insight/i.test(q);
       
       let pageContext = '';
@@ -215,16 +217,16 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
         }
       }
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Neural link error: ' + (err as Error).message }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Neural link error: ' + (err as Error).message + '. Status: ' + aiStatus }]);
     } finally {
-      setIsTyping(false);
+      setIsChatTyping(false);
     }
   };
 
   // ── Ghost Writer — True Local AI ────────────────────────────────────────────
   const handleGhostWrite = async () => {
     if (!ghostPrompt.trim()) return;
-    setIsTyping(true);
+    setIsGhostTyping(true);
     setGhostDraft('Synthesizing draft with True Local AI...');
     
     try {
@@ -261,7 +263,7 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
     } catch (err) {
       setGhostDraft('Error: ' + (err as Error).message);
     } finally {
-      setIsTyping(false);
+      setIsGhostTyping(false);
     }
   };
 
@@ -281,7 +283,7 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
           </div>
           <div className="flex items-baseline gap-2">
             <h1 className="font-black text-sm tracking-tight">Brain Vault</h1>
-            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v{APP_VERSION}</span>
+            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.6.0</span>
           </div>
         </div>
         <div className="flex bg-zinc-900 rounded-lg p-1">
@@ -314,15 +316,20 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
                   </div>
                 </div>
               ))}
-              {isTyping && (
-                <div className="flex justify-start">
-                  <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl flex gap-1 items-center">
-                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
-                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.2s]" />
-                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.4s]" />
+              {isChatTyping && (
+              <div className="flex gap-3 animate-in fade-in slide-in-from-bottom-2">
+                <div className="w-8 h-8 rounded-xl bg-zinc-900 flex items-center justify-center border border-zinc-800">
+                  <Brain size={14} className="text-zinc-600 animate-pulse" />
+                </div>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-none p-4 max-w-[85%]">
+                  <div className="flex gap-1">
+                    <div className="w-1.5 h-1.5 bg-zinc-700 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <div className="w-1.5 h-1.5 bg-zinc-700 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <div className="w-1.5 h-1.5 bg-zinc-700 rounded-full animate-bounce" />
                   </div>
                 </div>
-              )}
+              </div>
+            )}
             </div>
             <div className="p-4 bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent">
               <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-hide pb-1">
@@ -387,13 +394,13 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
             </div>
 
             <button
-              onClick={handleGhostWrite}
-              disabled={isTyping}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50"
-            >
-              <Sparkles size={14} />
-              {isTyping ? 'Drafting...' : 'Generate Email Draft'}
-            </button>
+                disabled={isGhostTyping || !ghostPrompt.trim()}
+                onClick={handleGhostWrite}
+                className={`w-full py-4 rounded-xl font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 ${isGhostTyping || !ghostPrompt.trim() ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20'}`}
+              >
+                <Sparkles size={16} />
+                {isGhostTyping ? 'Drafting...' : 'Generate Email Draft'}
+              </button>
 
             {ghostDraft && (
               <div className="animate-in fade-in slide-in-from-top-4 duration-500 space-y-3">
