@@ -46,6 +46,7 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [activeView, setActiveView] = useState<'all' | 'categories' | 'tags' | 'settings' | 'graph' | 'resurface' | 'import'>('all');
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   
   const [folders, setFolders] = useState<string[]>(['General']);
   const [newFolderName, setNewFolderName] = useState('');
@@ -1001,7 +1002,7 @@ const App = () => {
                   {folderStats.map(([cat, count]) => (
                     <button 
                       key={cat}
-                      onClick={() => handleSearch(cat === 'General' ? '' : cat)}
+                      onClick={() => { setSelectedFolder(cat); setActiveView('all'); }}
                       className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-3xl hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all group text-left relative overflow-hidden"
                     >
                       <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -1025,7 +1026,7 @@ const App = () => {
                   {allTags.map(([tag, count]) => (
                     <button 
                       key={tag}
-                      onClick={() => handleSearch(tag)}
+                      onClick={() => { setSearchQuery(tag); setIsSemantic(false); setActiveView('all'); handleSearch(tag); }}
                       className="px-6 py-3 bg-zinc-900/30 border border-zinc-800 rounded-2xl hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all group flex items-center gap-3"
                     >
                       <span className="text-zinc-500 group-hover:text-indigo-400 transition-colors font-bold">#</span>
@@ -1075,7 +1076,9 @@ const App = () => {
                 ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
                 : "flex flex-col gap-4"
               }>
-                {bookmarks.map((bookmark) => (
+                {bookmarks
+                  .filter(b => !selectedFolder || (b.category || 'General') === selectedFolder)
+                  .map((bookmark) => (
                   <div 
                     key={bookmark._id}
                     className="group relative bg-zinc-900/30 hover:bg-zinc-900/60 border border-zinc-800 hover:border-indigo-500/30 rounded-3xl p-6 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:shadow-indigo-500/10"

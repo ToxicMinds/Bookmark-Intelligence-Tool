@@ -82,51 +82,52 @@ export class AIService {
   
   // ── Generative AI (Chrome Built-in AI) ──────────────────────────────────────
   private async getPromptAPI(): Promise<any> {
-    // 1. Direct standard checks
-    let api = globalThis.ai?.languageModel || 
-              globalThis.ai?.assistant || 
+    // 1. Direct standard checks (Chrome 127 - 131)
+    let api = (globalThis as any).ai?.languageModel || 
+              (globalThis as any).ai?.assistant || 
               (globalThis as any).navigator?.ai?.languageModel ||
               (globalThis as any).chrome?.aiOriginTrial?.languageModel ||
-              (globalThis as any).chrome?.languageModel ||
-              (globalThis as any).model?.languageModel;
+              (globalThis as any).chrome?.languageModel;
     if (api) return { api, diagnostic: 'found_standard' };
 
-    // 2. Brute-force scanning of globalThis
-    const keys: string[] = [];
-    try {
-      for (const key in globalThis) {
+    // 2. Direct Constructor Check (Chrome 140+)
+    // Some versions expose LanguageModel globally as a factory/constructor
+    const LM = (globalThis as any).LanguageModel || (globalThis as any).ai?.LanguageModel;
+    if (LM && typeof LM.create === 'function') {
+      return { api: LM, diagnostic: 'found_LanguageModel_constructor' };
+    }
+
+    // 3. Brute-force scanning of globalThis (enumerable AND non-enumerable)
+    const scannedKeys = new Set<string>();
+    const probe = (obj: any, label: string) => {
+      if (!obj) return null;
+      // Get all property names including non-enumerable
+      const props = Object.getOwnPropertyNames(obj);
+      for (const key of props) {
         if (typeof key === 'string' && (key.toLowerCase().includes('ai') || key.toLowerCase().includes('model'))) {
-          keys.push(key);
+          scannedKeys.add(`${label}.${key}`);
           try {
-            const obj = (globalThis as any)[key];
-            if (obj && (obj.languageModel || obj.assistant || typeof obj.capabilities === 'function' || typeof obj.create === 'function' || obj.createGenericSession)) {
-              return { api: obj.languageModel || obj.assistant || obj, diagnostic: `found_in_window_${key}` };
+            const target = obj[key];
+            if (target && (target.languageModel || target.assistant || typeof target.capabilities === 'function' || typeof target.create === 'function' || target.createGenericSession)) {
+              return { api: target.languageModel || target.assistant || target, diagnostic: `found_in_${label}_${key}` };
             }
           } catch (e) {}
         }
       }
-    } catch(e) {}
+      return null;
+    };
 
-    // 3. Brute-force scanning of navigator
-    if (typeof navigator !== 'undefined') {
-      for (const key in navigator) {
-        if (key.toLowerCase().includes('ai') || key.toLowerCase().includes('model')) {
-          keys.push('nav_' + key);
-          try {
-            const obj = (navigator as any)[key];
-            if (obj && (obj.languageModel || obj.assistant || typeof obj.capabilities === 'function' || typeof obj.create === 'function' || obj.createGenericSession)) {
-              return { api: obj.languageModel || obj.assistant || obj, diagnostic: `found_in_nav_${key}` };
-            }
-          } catch (e) {}
-        }
-      }
-    }
+    let result = probe(globalThis, 'window');
+    if (result) return result;
+    
+    result = probe(navigator, 'nav');
+    if (result) return result;
 
-    if (keys.includes('LanguageModel')) {
-      return { api: null, diagnostic: `detached_factory_${keys.join(',')}` };
-    }
+    result = probe((globalThis as any).chrome, 'chrome');
+    if (result) return result;
 
-    return { api: null, diagnostic: `missing_api_scanned_${keys.join(',')}` };
+    const keysStr = Array.from(scannedKeys).join(',');
+    return { api: null, diagnostic: `missing_api_scanned_${keysStr || 'none'}` };
   }
 
   async checkGenerativeAIAvailability(): Promise<string> {

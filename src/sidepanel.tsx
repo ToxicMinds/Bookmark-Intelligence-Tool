@@ -204,10 +204,10 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
       } else {
         if (needsContext) {
            const resolution = aiStatus.startsWith('detached_factory') 
-             ? "Chrome is suppressing the AI runtime. Please ensure `chrome://flags/#optimization-guide-on-device-model` is literally set to **Enabled BypassPerfRequirement**."
-             : `To analyze "this page", Chrome's Built-in AI is required. Current status: **${aiStatus}**.`;
+             ? "Chrome is suppressing the AI runtime. Please ensure `chrome://flags/#optimization-guide-on-device-model` is set to **Enabled BypassPerfRequirement**."
+             : `To analyze "this page", enable Chrome's **Prompt API for Gemini Nano** flag. Status: **${aiStatus}**.`;
              
-           setMessages(prev => [...prev, { role: 'assistant', content: `${resolution} Without it, I can only search existing vault memories.` }]);
+           setMessages(prev => [...prev, { role: 'assistant', content: `${resolution} Without it, I can only search existing memories.` }]);
         } else {
            setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
         }
@@ -251,8 +251,8 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
         setGhostDraft(draft);
       } else {
         const resolution = aiStatus.startsWith('detached_factory') 
-          ? "Chrome is suppressing the AI runtime. Please ensure \\`chrome://flags/#optimization-guide-on-device-model\\` is literally set to **Enabled BypassPerfRequirement**."
-          : "Please enable Chrome's Built-in AI to use Ghost Writer email generation by turning on the Gemini Nano flag.";
+          ? "Chrome is suppressing the AI runtime. Please ensure \\`chrome://flags/#optimization-guide-on-device-model\\` is set to **Enabled BypassPerfRequirement**."
+          : "Please enable Chrome's **Prompt API for Gemini Nano** flag to use Ghost Writer email generation.";
           
         setGhostDraft(`[Generative AI currently disabled]\n\nStatus: ${aiStatus}\n\n${resolution}\n\nContext found for your prompt:\n${vaultText}`);
       }
@@ -279,7 +279,7 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
           </div>
           <div className="flex items-baseline gap-2">
             <h1 className="font-black text-sm tracking-tight">Brain Vault</h1>
-            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.5.7</span>
+            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.5.8</span>
           </div>
         </div>
         <div className="flex bg-zinc-900 rounded-lg p-1">

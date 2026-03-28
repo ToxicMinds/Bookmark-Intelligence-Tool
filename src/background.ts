@@ -150,35 +150,36 @@ async function handleSaveAnnotation(request: { text: string; url: string; title:
 
   async function handleImportChromeBookmarks() {
   try {
+    // Force reinit in case we just destroyed the DB
+    (dbService as any).reinit?.();
+    
     const tree = await chrome.bookmarks.getTree();
     const flat: { url: string; title: string; folder: string }[] = [];
 
-    // Root-level Chrome folder names to skip (not meaningful to users)
-    const ROOT_SKIP = new Set(['Bookmarks bar', 'Bookmarks Bar', 'Other bookmarks', 'Other Bookmarks', 'Mobile bookmarks', 'Mobile Bookmarks', '']);
+    // Root-level Chrome folder names to skip (not meaningful to users in terms of depth)
+    const ROOT_SKIP = new Set(['Bookmarks bar', 'Bookmarks Bar', 'Other bookmarks', 'Other Bookmarks', 'Mobile bookmarks', 'Mobile Bookmarks', 'ROOT', 'root', '']);
 
     function walk(nodes: chrome.bookmarks.BookmarkTreeNode[], pathSegments: string[] = []) {
       for (const node of nodes) {
         if (node.url) {
-          // Build folder path from segments (skip empty/root names)
-          const folderPath = pathSegments.filter(Boolean).join(' / ') || 'Imported';
+          const folderPath = pathSegments.filter(Boolean).join(' / ') || 'General';
           flat.push({ url: node.url, title: node.title || node.url, folder: folderPath });
         }
-        if (node.children) {
-          // Add this node's name to path, unless it's a root-level system folder
+        if (node.children && node.children.length > 0) {
           const shouldAddToPath = node.title && !ROOT_SKIP.has(node.title);
           walk(node.children, shouldAddToPath ? [...pathSegments, node.title] : pathSegments);
         }
       }
     }
 
-    // Start the walk — first level is the invisible root, skip it
     if (tree[0]?.children) {
       for (const topLevel of tree[0].children) {
-        // Top-level folders (Bookmarks Bar, Other bookmarks) — use their name as the first path segment
         if (topLevel.children) {
-          walk(topLevel.children, ROOT_SKIP.has(topLevel.title) ? [] : [topLevel.title]);
+          // If it's a skip-folder (like "Other bookmarks"), don't include its name in path, but walk its children
+          const isRootFolder = ROOT_SKIP.has(topLevel.title);
+          walk(topLevel.children, isRootFolder ? [] : [topLevel.title]);
         } else if (topLevel.url) {
-          flat.push({ url: topLevel.url, title: topLevel.title || topLevel.url, folder: 'Imported' });
+          flat.push({ url: topLevel.url, title: topLevel.title || topLevel.url, folder: 'General' });
         }
       }
     }
@@ -194,7 +195,7 @@ async function handleSaveAnnotation(request: { text: string; url: string; title:
 // ── JSON bookmark import ──────────────────────────────────────────────────────
 async function handleImportJsonBookmarks(bookmarks: { url: string; title: string; folder?: string }[]) {
   try {
-    const results = await batchImport(bookmarks.map(b => ({ ...b, folder: b.folder || 'Imported' })));
+    const results = await batchImport(bookmarks.map(b => ({ ...b, folder: b.folder || 'General' })));
     chrome.runtime.sendMessage({ action: 'vault_updated' }).catch(() => {});
     return { success: true, imported: results.imported, skipped: results.skipped };
   } catch (error) {
@@ -213,7 +214,7 @@ async function batchImport(items: { url: string; title: string; folder: string }
       }
       const existing = await dbService.getBookmarkByUrl(item.url);
       if (existing) {
-        if (item.folder && item.folder !== 'Imported' && existing.category !== item.folder) {
+        if (item.folder && item.folder !== 'General' && existing.category !== item.folder) {
           await dbService.updateBookmark(existing._id, { category: item.folder });
         }
         skipped++;
@@ -231,7 +232,7 @@ async function batchImport(items: { url: string; title: string; folder: string }
         textContent: item.title,
         summary,
         tags,
-        category: item.folder && item.folder !== 'Imported' ? item.folder : 'Uncategorized',
+        category: item.folder && item.folder !== 'General' ? item.folder : 'General',
         embedding,
         highlights: [],
       });

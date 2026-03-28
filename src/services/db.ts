@@ -35,12 +35,18 @@ export interface BookmarkDoc {
 }
 
 export class DatabaseService {
-  private localDb: PouchDB.Database;
-  private encryption: EncryptionService;
+  private localDb!: PouchDB.Database;
+  private encryption!: EncryptionService;
 
   constructor() {
-    this.localDb = new PouchDBConstructor('bookmarks_db');
     this.encryption = new EncryptionService();
+    // Assign a dummy to satisfy TS briefly, though reinit will overwrite
+    this.localDb = new PouchDBConstructor('bookmarks_db');
+    this.reinit();
+  }
+
+  reinit() {
+    this.localDb = new PouchDBConstructor('bookmarks_db');
     this.initIndices();
   }
 
