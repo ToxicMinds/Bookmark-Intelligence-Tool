@@ -148,40 +148,38 @@ async function handleSaveAnnotation(request: { text: string; url: string; title:
   }
 }
 
+import { APP_VERSION, DEFAULT_FOLDER, ROOT_SKIP_FOLDERS } from './constants';
+
+// ... (existing imports, assuming they are above)
+
   async function handleImportChromeBookmarks() {
   try {
-    // Force reinit in case we just destroyed the DB
-    (dbService as any).reinit?.();
+    // 1. Force a clean DB handle in the background worker
+    if ((dbService as any).reinit) (dbService as any).reinit();
     
     const tree = await chrome.bookmarks.getTree();
     const flat: { url: string; title: string; folder: string }[] = [];
-
-    // Root-level Chrome folder names to skip (not meaningful to users in terms of depth)
-    const ROOT_SKIP = new Set(['Bookmarks bar', 'Bookmarks Bar', 'Other bookmarks', 'Other Bookmarks', 'Mobile bookmarks', 'Mobile Bookmarks', 'ROOT', 'root', '']);
+    const ROOT_SKIP = new Set(ROOT_SKIP_FOLDERS);
 
     function walk(nodes: chrome.bookmarks.BookmarkTreeNode[], pathSegments: string[] = []) {
       for (const node of nodes) {
         if (node.url) {
-          const folderPath = pathSegments.filter(Boolean).join(' / ') || 'General';
+          // If no folder path was built, put it in General
+          const folderPath = pathSegments.join(' / ') || DEFAULT_FOLDER;
           flat.push({ url: node.url, title: node.title || node.url, folder: folderPath });
         }
         if (node.children && node.children.length > 0) {
-          const shouldAddToPath = node.title && !ROOT_SKIP.has(node.title);
-          walk(node.children, shouldAddToPath ? [...pathSegments, node.title] : pathSegments);
+          // If this node is NOT a system folder to skip, we add its title to the path
+          const isSystemFolder = node.title && ROOT_SKIP.has(node.title);
+          const nextPath = isSystemFolder ? pathSegments : [...pathSegments, node.title].filter(Boolean);
+          walk(node.children, nextPath);
         }
       }
     }
 
+    // Chrome bookmark tree[0] is always the invisible root
     if (tree[0]?.children) {
-      for (const topLevel of tree[0].children) {
-        if (topLevel.children) {
-          // If it's a skip-folder (like "Other bookmarks"), don't include its name in path, but walk its children
-          const isRootFolder = ROOT_SKIP.has(topLevel.title);
-          walk(topLevel.children, isRootFolder ? [] : [topLevel.title]);
-        } else if (topLevel.url) {
-          flat.push({ url: topLevel.url, title: topLevel.title || topLevel.url, folder: 'General' });
-        }
-      }
+      walk(tree[0].children, []);
     }
 
     const results = await batchImport(flat);

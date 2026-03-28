@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Brain Vault",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "description": "Turn your browser into an AI-powered second brain. Semantic search finds pages by meaning, Brain Chat answers questions from your vault, and Ghost Writer synthesizes research into drafts. All AI runs 100% locally with optional E2EE sync to Google Drive or CouchDB. Privacy-first. No cloud AI. No vendor lock-in.",
   "permissions": ["storage", "activeTab", "scripting", "contextMenus", "sidePanel", "tabs", "tabGroups", "identity", "bookmarks"],
   "action": {

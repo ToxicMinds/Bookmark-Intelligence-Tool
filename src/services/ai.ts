@@ -82,52 +82,30 @@ export class AIService {
   
   // ── Generative AI (Chrome Built-in AI) ──────────────────────────────────────
   private async getPromptAPI(): Promise<any> {
-    // 1. Direct standard checks (Chrome 127 - 131)
-    let api = (globalThis as any).ai?.languageModel || 
-              (globalThis as any).ai?.assistant || 
-              (globalThis as any).navigator?.ai?.languageModel ||
-              (globalThis as any).chrome?.aiOriginTrial?.languageModel ||
-              (globalThis as any).chrome?.languageModel;
-    if (api) return { api, diagnostic: 'found_standard' };
+    const g = globalThis as any;
+    
+    // 1. Direct standard namespaces
+    if (g.ai?.languageModel) return { api: g.ai.languageModel, diagnostic: 'found_ai_lm' };
+    if (g.ai?.assistant) return { api: g.ai.assistant, diagnostic: 'found_ai_asst' };
+    if (g.navigator?.ai?.languageModel) return { api: g.navigator.ai.languageModel, diagnostic: 'found_nav_ai_lm' };
+    if (g.chrome?.aiOriginTrial?.languageModel) return { api: g.chrome.aiOriginTrial.languageModel, diagnostic: 'found_chrome_ot_lm' };
+    if (g.chrome?.languageModel) return { api: g.chrome.languageModel, diagnostic: 'found_chrome_lm' };
 
-    // 2. Direct Constructor Check (Chrome 140+)
-    // Some versions expose LanguageModel globally as a factory/constructor
-    const LM = (globalThis as any).LanguageModel || (globalThis as any).ai?.LanguageModel;
-    if (LM && typeof LM.create === 'function') {
-      return { api: LM, diagnostic: 'found_LanguageModel_constructor' };
+    // 2. Global Class Factory (Chrome 140+)
+    if (g.LanguageModel && typeof g.LanguageModel.create === 'function') {
+      return { api: g.LanguageModel, diagnostic: 'found_global_LanguageModel' };
     }
 
-    // 3. Brute-force scanning of globalThis (enumerable AND non-enumerable)
-    const scannedKeys = new Set<string>();
-    const probe = (obj: any, label: string) => {
-      if (!obj) return null;
-      // Get all property names including non-enumerable
-      const props = Object.getOwnPropertyNames(obj);
-      for (const key of props) {
-        if (typeof key === 'string' && (key.toLowerCase().includes('ai') || key.toLowerCase().includes('model'))) {
-          scannedKeys.add(`${label}.${key}`);
-          try {
-            const target = obj[key];
-            if (target && (target.languageModel || target.assistant || typeof target.capabilities === 'function' || typeof target.create === 'function' || target.createGenericSession)) {
-              return { api: target.languageModel || target.assistant || target, diagnostic: `found_in_${label}_${key}` };
-            }
-          } catch (e) {}
-        }
-      }
-      return null;
-    };
+    // 3. Fallback diagnostic (list what we checked, NO loops)
+    const checked = [
+      !!g.ai, 
+      !!g.navigator?.ai, 
+      !!g.chrome?.aiOriginTrial, 
+      !!g.chrome?.languageModel, 
+      !!g.LanguageModel
+    ].map((v, i) => ['ai', 'nav_ai', 'chrome_ot', 'chrome_lm', 'LM'][i] + ':' + v).join('|');
 
-    let result = probe(globalThis, 'window');
-    if (result) return result;
-    
-    result = probe(navigator, 'nav');
-    if (result) return result;
-
-    result = probe((globalThis as any).chrome, 'chrome');
-    if (result) return result;
-
-    const keysStr = Array.from(scannedKeys).join(',');
-    return { api: null, diagnostic: `missing_api_scanned_${keysStr || 'none'}` };
+    return { api: null, diagnostic: `missing_api_scanned_${checked}` };
   }
 
   async checkGenerativeAIAvailability(): Promise<string> {

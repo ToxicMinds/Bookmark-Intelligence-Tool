@@ -17,6 +17,8 @@ import {
 import { dbService, BookmarkDoc } from './services/db'
 import { aiService } from './services/ai'
 import { semanticSearch } from './services/semanticSearch'
+import { authService, AuthUser } from './services/authService'
+import { APP_VERSION } from './constants'
 import './index.css'
 
 const TONES = [
@@ -279,7 +281,7 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
           </div>
           <div className="flex items-baseline gap-2">
             <h1 className="font-black text-sm tracking-tight">Brain Vault</h1>
-            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.5.8</span>
+            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v{APP_VERSION}</span>
           </div>
         </div>
         <div className="flex bg-zinc-900 rounded-lg p-1">

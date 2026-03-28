@@ -611,7 +611,10 @@ const App = () => {
                   if(window.confirm('Delete all bookmarks? This cannot be undone.')) {
                     try {
                       await (dbService as any).localDb.destroy();
-                      chrome.runtime.reload();
+                      // Small delay to allow PouchDB to release file system handles
+                      setTimeout(() => {
+                        try { chrome.runtime.reload(); } catch(e) { window.location.reload(); }
+                      }, 500);
                     } catch (e) {
                       window.location.reload();
                     }
