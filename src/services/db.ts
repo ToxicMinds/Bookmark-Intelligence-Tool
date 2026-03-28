@@ -129,12 +129,18 @@ export class DatabaseService {
 
   async getFolders(): Promise<string[]> {
     try {
-      const result = await this.localDb.find({ selector: { type: 'bookmark' } } as any);
+      const result = await this.localDb.find({ 
+        selector: { type: 'bookmark' },
+        limit: 10000 
+      } as any);
       const bookmarks = result.docs as unknown as BookmarkDoc[];
       const categories = new Set<string>(['General']);
       bookmarks.forEach(b => { if (b.category) categories.add(b.category); });
 
-      const folderDocs = await this.localDb.find({ selector: { type: 'folder' } } as any);
+      const folderDocs = await this.localDb.find({ 
+        selector: { type: 'folder' },
+        limit: 1000 
+      } as any);
       folderDocs.docs.forEach((f: any) => categories.add(f.title));
 
       return Array.from(categories).sort();
@@ -165,10 +171,14 @@ export class DatabaseService {
       const result = await this.localDb.find({
         selector: { type: 'bookmark', createdAt: { $gt: null } },
         sort: [{ createdAt: 'desc' }],
+        limit: 10000
       } as any);
       return result.docs as unknown as BookmarkDoc[];
     } catch {
-      const result = await this.localDb.find({ selector: { type: 'bookmark' } } as any);
+      const result = await this.localDb.find({ 
+        selector: { type: 'bookmark' },
+        limit: 10000 
+      } as any);
       const docs = result.docs as unknown as BookmarkDoc[];
       return docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }

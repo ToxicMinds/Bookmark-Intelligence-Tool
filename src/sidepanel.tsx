@@ -15,7 +15,8 @@ import {
   ChevronDown,
   Activity,
   AlertCircle,
-  Terminal
+  Terminal,
+  RotateCcw
 } from 'lucide-react'
 import { dbService, BookmarkDoc } from './services/db'
 import { aiService } from './services/ai'
@@ -96,7 +97,7 @@ const SidePanel = () => {
 
   const loadRecent = async () => {
     const all = await dbService.getAllBookmarks();
-    setRecentBookmarks(all.slice(0, 10));
+    setRecentBookmarks(all.slice(0, 50));
   };
 
   const handleChat = async (directQuery?: string) => {
@@ -311,7 +312,10 @@ const SidePanel = () => {
           <div className="h-full overflow-hidden flex flex-col z-10 relative p-5">
              <div className="flex items-center justify-between mb-6">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2"><Terminal size={14} /> System Trace</h3>
-                <button onClick={() => { logger.clearLogs(); setActiveTab('chat'); }} className="text-[10px] font-black text-rose-500 uppercase">Clear</button>
+                <div className="flex gap-4">
+                  <button onClick={async () => { logger.info('AI', 'Manual Neural Reset triggered'); setActiveTab('chat'); checkAI(); }} className="text-[10px] font-black text-indigo-400 uppercase tracking-widest hover:text-white transition-colors flex items-center gap-1.5"><RotateCcw size={10}/> Reset</button>
+                  <button onClick={() => { logger.clearLogs(); setActiveTab('chat'); }} className="text-[10px] font-black text-rose-500 uppercase tracking-widest hover:text-white transition-colors">Flush</button>
+                </div>
              </div>
              <div className="flex-1 overflow-y-auto space-y-3 font-mono text-[10px] scrollbar-hide">
                 {logger.getLogs().map((l, i) => (

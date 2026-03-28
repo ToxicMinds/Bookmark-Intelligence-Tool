@@ -28,7 +28,8 @@ import {
   Clock,
   FileJson,
   Database,
-  Terminal
+  Terminal,
+  Sparkles
 } from 'lucide-react'
 import { dbService, BookmarkDoc } from './services/db'
 import { semanticSearch } from './services/semanticSearch'
@@ -47,7 +48,7 @@ const App = () => {
   const [isSemantic, setIsSemantic] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [activeView, setActiveView] = useState<'all' | 'categories' | 'tags' | 'settings' | 'graph' | 'resurface' | 'import' | 'logs'>('all');
+  const [activeView, setActiveView] = useState<'all' | 'categories' | 'tags' | 'settings' | 'graph' | 'resurface' | 'import' | 'logs' | 'payment'>('all');
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [folders, setFolders] = useState<string[]>(['General']);
   const [newFolderName, setNewFolderName] = useState('');
@@ -107,16 +108,76 @@ const App = () => {
   const allTags = useMemo(() => { const t: Record<string, number> = {}; bookmarks.forEach(b => b.tags?.forEach(tg => t[tg] = (t[tg] || 0) + 1)); return Object.entries(t).sort((a,b)=>b[1]-a[1]); }, [bookmarks]);
 
   const renderResurfaceView = () => (
-    <div className="animate-in fade-in slide-in-from-bottom-4">
-      <div className="mb-10"><h1 className="text-4xl font-black tracking-tighter mb-2">Resurface</h1><p className="text-zinc-500 font-medium">Reconnect with forgotten knowledge (7+ days since last visit).</p></div>
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="mb-10">
+        <h1 className="text-4xl font-black tracking-tighter mb-2 text-neural">Resurface</h1>
+        <p className="text-zinc-500 font-medium">Reconnect with forgotten knowledge (7+ days since last visit).</p>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {bookmarks.filter(b => (Date.now() - new Date(b.lastAccessed || b.createdAt).getTime()) > 7*86400000).map(b => (
-          <div key={b._id} className="bg-zinc-900/30 border border-zinc-800 rounded-3xl p-6 hover:border-indigo-500/30 transition-all cursor-pointer" onClick={() => setSelectedReaderBookmark(b)}>
-            <div className="flex justify-between mb-2"><span className="text-[10px] font-black uppercase text-indigo-400">{b.category||'General'}</span></div>
-            <h3 className="font-bold mb-2 line-clamp-2">{b.title}</h3>
-            <p className="text-zinc-500 text-xs line-clamp-2">{b.summary}</p>
+          <div key={b._id} className="glass-card p-6 hover:border-indigo-500/30 transition-all cursor-pointer group" onClick={() => setSelectedReaderBookmark(b)}>
+            <div className="flex justify-between mb-2"><span className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">{b.category||'General'}</span><Clock size={14} className="text-zinc-700 group-hover:text-indigo-400" /></div>
+            <h3 className="font-bold mb-2 line-clamp-2 group-hover:text-white transition-colors">{b.title}</h3>
+            <p className="text-zinc-500 text-xs line-clamp-2 leading-relaxed">{b.summary}</p>
           </div>
         ))}
+        {bookmarks.filter(b => (Date.now() - new Date(b.lastAccessed || b.createdAt).getTime()) > 7*86400000).length === 0 && (
+          <div className="col-span-full py-40 text-center glass-card border-dashed">
+             <div className="text-zinc-800 font-black uppercase tracking-[0.4em]">All knowledge is fresh</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderTagsView = () => (
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="mb-10"><h1 className="text-4xl font-black tracking-tighter mb-2 text-neural">Taxonomy</h1><p className="text-zinc-500 font-medium">Browse your intelligence by extracted tags and entities.</p></div>
+      <div className="flex flex-wrap gap-4">
+        {allTags.map(([tag, count]) => (
+          <button key={tag} className="glass-card px-6 py-4 flex items-center gap-4 hover:border-indigo-500/50 transition-all group">
+            <TagIcon size={18} className="text-indigo-400" />
+            <span className="font-bold">{tag}</span>
+            <span className="text-[10px] font-black bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-full">{count}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderGraphView = () => (
+    <div className="h-[70vh] glass-card relative overflow-hidden animate-in fade-in duration-1000">
+      <div className="absolute top-8 left-8 z-10">
+        <h2 className="text-2xl font-black tracking-tighter text-neural">Neural Network</h2>
+        <p className="text-zinc-500 text-xs font-medium uppercase tracking-widest">Visualizing {bookmarks.length} cross-linked memories</p>
+      </div>
+      <div className="w-full h-full flex items-center justify-center bg-zinc-950/20">
+         <div className="text-center animate-pulse">
+            <Network size={64} className="text-indigo-600/20 mx-auto mb-4" />
+            <p className="text-zinc-800 font-black uppercase tracking-[0.5em] text-[10px]">Canvas Rendering Active</p>
+         </div>
+         {/* Graph rendering logic would go here, restored to placeholder for visual flow */}
+      </div>
+    </div>
+  );
+
+  const renderPaymentView = () => (
+    <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4">
+      <div className="text-center mb-12">
+        <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-indigo-600/20 animate-pulse-slow"><Shield size={40} className="text-white" /></div>
+        <h1 className="text-4xl font-black tracking-tighter text-neural mb-2">Vault Pro</h1>
+        <p className="text-zinc-500 font-medium">Unlock Unlimited Sync, Neural Search, and Advanced Graph Tracing.</p>
+      </div>
+      <div className="glass-card p-10 space-y-8 border-indigo-500/20 bg-indigo-500/5">
+        <div className="flex justify-between items-center mb-4">
+          <span className="text-xs font-black uppercase tracking-widest text-indigo-400">Current Status</span>
+          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${license.tier === 'free' ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-400'}`}>{license.tier}</span>
+        </div>
+        <div className="space-y-4">
+          <input value={licenseKey} onChange={e => setLicenseKey(e.target.value)} placeholder="Activation Key" className="w-full glass-card bg-zinc-950 py-4 px-6 text-sm focus:outline-none focus:border-indigo-500/50" />
+          <button onClick={handleVerifyLicense} disabled={isVerifying} className="w-full py-4 neural-gradient text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/20">{isVerifying ? 'Verifying...' : 'Activate Neural License'}</button>
+          {licenseError && <p className="text-center text-rose-500 text-xs font-bold">{licenseError}</p>}
+        </div>
       </div>
     </div>
   );
@@ -193,18 +254,26 @@ const App = () => {
         </div>
         {isCreatingFolder && <div className="flex gap-4 p-6 bg-zinc-900/50 border border-zinc-800 rounded-2xl"><input ref={folderInputRef} value={newFolderName} onChange={e=>setNewFolderName(e.target.value)} className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4" /><button onClick={handleCreateFolder} className="bg-emerald-600 px-4 py-2 rounded-lg text-xs font-black uppercase">Create</button></div>}
         <div className="flex gap-4 items-center bg-zinc-900/40 p-2 rounded-2xl border border-zinc-800">
-          <Search className="ml-4 text-zinc-500" size={18} /><input placeholder="Search your knowledge..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className="flex-1 bg-transparent border-none py-3 text-sm focus:outline-none" />
+          <Search className="ml-4 text-zinc-500" size={18} />
+          <input placeholder="Search your knowledge..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className="flex-1 bg-transparent border-none py-3 text-sm focus:outline-none" />
+          <button onClick={() => setIsSemantic(!isSemantic)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isSemantic ? 'bg-indigo-600 text-white shadow-lg' : 'bg-zinc-900 text-zinc-500'}`}>
+             {isSemantic ? <span className="flex items-center gap-2"><Sparkles size={12}/> Neural Search</span> : 'Keyword Match'}
+          </button>
         </div>
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {bookmarks.filter(b => !selectedFolder || (b.category || 'General') === selectedFolder).map(b => (
-          <div key={b._id} className="group bg-zinc-900/30 border border-zinc-800 hover:border-indigo-500/30 rounded-3xl p-6 transition-all hover:-translate-y-1">
-            <div className="flex justify-between mb-4"><span className="text-[10px] font-black uppercase text-indigo-400">{b.category||'General'}</span><div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={()=>setSelectedReaderBookmark(b)}><BookOpen size={16}/></button><button onClick={()=>handleDelete(b._id)} className="text-rose-500"><Trash2 size={16}/></button></div></div>
-            <h3 className="text-lg font-bold mb-3 line-clamp-2">{b.title}</h3>
-            <p className="text-zinc-500 text-sm line-clamp-3 mb-4">{b.summary}</p>
-            <div className="text-[10px] font-bold text-zinc-600 uppercase pt-4 border-t border-zinc-800/50">{new Date(b.createdAt).toLocaleDateString()}</div>
+        {(isSemantic && searchQuery ? bookmarks : bookmarks.filter(b => !selectedFolder || (b.category || 'General') === selectedFolder).filter(b => b.title.toLowerCase().includes(searchQuery.toLowerCase()))).map(b => (
+          <div key={b._id} className="group glass-card p-6 hover:-translate-y-1 transition-all duration-300">
+            <div className="flex justify-between mb-4"><span className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">{b.category||'General'}</span><div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={()=>setSelectedReaderBookmark(b)} className="text-zinc-400 hover:text-white"><BookOpen size={16}/></button><button onClick={()=>handleDelete(b._id)} className="text-rose-500 hover:text-rose-400"><Trash2 size={16}/></button></div></div>
+            <h3 className="text-lg font-bold mb-3 line-clamp-2 group-hover:text-indigo-400 transition-colors uppercase tracking-tight">{b.title}</h3>
+            <p className="text-zinc-500 text-sm line-clamp-3 mb-6 leading-relaxed font-medium">{b.summary}</p>
+            <div className="flex justify-between items-center pt-4 border-t border-white/5">
+               <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{new Date(b.createdAt).toLocaleDateString()}</span>
+               <ExternalLink size={12} className="text-zinc-800" />
+            </div>
           </div>
         ))}
+        {bookmarks.length === 0 && <div className="col-span-full py-60 text-center glass-card border-dashed"><div className="text-zinc-800 font-black uppercase tracking-[0.5em] text-xs">No memories found in the current sector</div></div>}
       </div>
     </div>
   );
@@ -217,21 +286,27 @@ const App = () => {
           <div className="max-w-2xl mx-auto"><h1 className="text-4xl font-black mb-8">{selectedReaderBookmark.title}</h1><div className="prose prose-zinc prose-invert leading-relaxed">{selectedReaderBookmark.textContent}</div></div>
         </div>
       )}
-      <nav className="fixed left-0 top-0 h-full w-20 border-r border-zinc-900 flex flex-col items-center py-8 bg-zinc-950/50 z-50">
-        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center mb-10"><Brain className="text-white" size={24} /></div>
-        <div className="flex flex-col gap-6">
-          <button onClick={()=>setActiveView('all')} title="Main"><LayoutGrid size={24}/></button>
-          <button onClick={()=>setActiveView('categories')} className={`transition-all ${activeView==='categories'?'text-indigo-400':'text-zinc-600'}`} title="Folders"><FolderOpen size={22}/></button>
-          <button onClick={()=>setActiveView('import')} className={`transition-all ${activeView==='import'?'text-indigo-400':'text-zinc-600'}`} title="Import"><Upload size={22}/></button>
-          <button onClick={()=>setActiveView('logs')} className={`transition-all ${activeView==='logs'?'text-indigo-400':'text-zinc-600'}`} title="System Trace"><Terminal size={22}/></button>
-          <button onClick={()=>setActiveView('settings')} className={`transition-all ${activeView==='settings'?'text-indigo-400':'text-zinc-600'}`} title="Settings"><Settings size={22}/></button>
+      <nav className="fixed left-0 top-0 h-full w-24 border-r border-white/5 flex flex-col items-center py-10 bg-zinc-950/80 backdrop-blur-3xl z-50">
+        <div className="w-14 h-14 neural-gradient rounded-2xl flex items-center justify-center mb-12 shadow-2xl shadow-indigo-600/20"><Brain className="text-white" size={28} /></div>
+        <div className="flex flex-col gap-8 flex-1">
+          <button onClick={()=>setActiveView('all')} className={`transition-all hover:scale-110 ${activeView==='all'?'text-indigo-400':'text-zinc-600'}`} title="Main"><LayoutGrid size={24}/></button>
+          <button onClick={()=>setActiveView('categories')} className={`transition-all hover:scale-110 ${activeView==='categories'?'text-indigo-400':'text-zinc-600'}`} title="Folders"><FolderOpen size={24}/></button>
+          <button onClick={()=>setActiveView('tags')} className={`transition-all hover:scale-110 ${activeView==='tags'?'text-indigo-400':'text-zinc-600'}`} title="Tags"><TagIcon size={24}/></button>
+          <button onClick={()=>setActiveView('graph')} className={`transition-all hover:scale-110 ${activeView==='graph'?'text-indigo-400':'text-zinc-600'}`} title="Neural Graph"><Network size={24}/></button>
+          <button onClick={()=>setActiveView('import')} className={`transition-all hover:scale-110 ${activeView==='import'?'text-indigo-400':'text-zinc-600'}`} title="Import"><Upload size={24}/></button>
+          <button onClick={()=>setActiveView('payment')} className={`transition-all hover:scale-110 ${activeView==='payment'?'text-indigo-400':'text-zinc-600'}`} title="Vault Pro"><Shield size={24}/></button>
+          <button onClick={()=>setActiveView('logs')} className={`transition-all hover:scale-110 ${activeView==='logs'?'text-indigo-400':'text-zinc-600'}`} title="Trace"><Terminal size={24}/></button>
         </div>
+        <button onClick={()=>setActiveView('settings')} className={`p-4 transition-all hover:rotate-90 ${activeView==='settings'?'text-indigo-400':'text-zinc-600'}`} title="Settings"><Settings size={26}/></button>
       </nav>
       <main className="pl-32 pr-12 py-12 relative z-10">
         {activeView === 'settings' && renderSettingsView()}
         {activeView === 'import' && renderImportView()}
         {activeView === 'resurface' && renderResurfaceView()}
         {activeView === 'logs' && renderLogsView()}
+        {activeView === 'tags' && renderTagsView()}
+        {activeView === 'graph' && renderGraphView()}
+        {activeView === 'payment' && renderPaymentView()}
         {(activeView === 'all' || activeView === 'categories') && renderStandardView()}
       </main>
       <div className="fixed top-1/4 -right-64 w-[500px] h-[500px] bg-indigo-600/5 rounded-full blur-[120px] pointer-events-none" />

@@ -1,4 +1,5 @@
 import { pipeline, env } from '@xenova/transformers';
+import { logger } from './logService';
 
 env.allowLocalModels = false;
 env.useBrowserCache = true;
@@ -129,59 +130,86 @@ export class AIService {
     const { api, diagnostic } = await this.getPromptAPI();
     
     if (!api) {
+      logger.error('AI', `API not found: ${diagnostic}`);
       throw new Error(`Generative AI not found. Diagnostic: ${diagnostic}`);
     }
     
-    let caps;
+    // ── Timeout Wrapper ─────────────────────────────────────────────────────────
+    const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+      let timeoutId: any;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`AI ${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+      });
+      try {
+        return await Promise.race([promise, timeoutPromise]);
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    };
+
+    logger.info('AI', `Initializing session (${diagnostic})`);
+    
     try {
       if (typeof api.capabilities === 'function') {
-        caps = await api.capabilities();
+        const caps: any = await withTimeout(api.capabilities(), 5000, 'capabilities check');
         if (caps.available === 'no') {
-          throw new Error('Generative AI is disabled globally on this device (capabilities returned "no").');
+          logger.error('AI', 'Model unavailable (capabilities="no")');
+          throw new Error('Generative AI is disabled globally on this device.');
+        }
+        if (caps.available === 'after-download') {
+          logger.warn('AI', 'Model downloading...');
+          return "Neural Link is currently downloading the intelligence model. Please wait a moment and try again.";
         }
       }
     } catch (e) {
+      if ((e as Error).message.includes('timed out')) {
+         logger.error('AI', 'Capabilities check timed out');
+      } else {
+         logger.error('AI', `Capabilities check failed: ${(e as Error).message}`);
+      }
       throw new Error(`Generative AI threw error checking capabilities: ${(e as Error).message}`);
     }
 
-    // Modern API uses create(), older ones used createGenericSession() or similar
-    let session;
-    if (typeof api.create === 'function') {
-      try {
-        // Attempt the plural form (Chrome 140+ standard)
-        session = await api.create({
-          expectedOutputLanguages: ['en'],
-          monitor(m: any) {
-            if (m?.addEventListener) {
-              m.addEventListener('downloadprogress', (e: any) => {
-                console.log(`Downloading AI model: ${e.loaded} / ${e.total}`);
-              });
-            }
-          }
-        });
-      } catch (e) {
-        // Fallback to singular (some Canary/Dev builds) or empty options
-        try {
-          session = await api.create({ expectedOutputLanguage: 'en' });
-        } catch (e2) {
-          session = await api.create();
-        }
+    // ── Session Creation ────────────────────────────────────────────────────────
+    let session: any;
+    try {
+      if (typeof api.create === 'function') {
+        logger.info('AI', 'Creating session...');
+        session = await withTimeout(api.create({
+          expectedOutputLanguages: ['en']
+        }), 15000, 'session creation');
+      } else if (typeof api.createTextSession === 'function') {
+        session = await api.createTextSession();
+      } else if (typeof api.createGenericSession === 'function') {
+        session = await api.createGenericSession();
+      } else {
+         throw new Error(`API object found (${diagnostic}) but no create() method available.`);
       }
-    } else if (typeof api.createTextSession === 'function') {
-      session = await api.createTextSession();
-    } else if (typeof api.createGenericSession === 'function') {
-      session = await api.createGenericSession();
-    } else {
-       throw new Error(`API object found (${diagnostic}) but no create() method available.`);
+    } catch (e) {
+      logger.warn('AI', `Session creation failed, trying fallback: ${(e as Error).message}`);
+      try {
+        session = await api.create({ expectedOutputLanguage: 'en' });
+      } catch (e2) {
+        session = await api.create();
+      }
     }
     
+    // ── Prompting ───────────────────────────────────────────────────────────────
     try {
+      logger.info('AI', 'Sending prompt to Neural Link...');
+      let response = "";
       if (typeof session.prompt === 'function') {
-        return await session.prompt(prompt);
+        response = await withTimeout(session.prompt(prompt), 30000, 'generation');
       } else if (typeof session.execute === 'function') {
-        return await session.execute(prompt);
+        response = await withTimeout(session.execute(prompt), 30000, 'generation');
+      } else {
+        throw new Error("Unsupported prompt method on session");
       }
-      return "Error: Unsupported prompt method on session";
+      logger.info('AI', 'Response received');
+      return response;
+    } catch (err) {
+      logger.error('AI', `Generation failed: ${(err as Error).message}`);
+      throw err;
     } finally {
       if (session && typeof session.destroy === 'function') {
         session.destroy();
