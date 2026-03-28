@@ -27,7 +27,8 @@ import {
   LogOut,
   Clock,
   FileJson,
-  Database
+  Database,
+  Terminal
 } from 'lucide-react'
 import { dbService, BookmarkDoc } from './services/db'
 import { semanticSearch } from './services/semanticSearch'
@@ -36,6 +37,8 @@ import { syncService } from './services/sync'
 import { buildGraph, GraphData } from './services/graphService'
 import { authService, AuthUser } from './services/authService'
 import { aiService } from './services/ai'
+import { logger, LogEntry } from './services/logService'
+import { APP_VERSION } from './constants'
 import './index.css'
 
 const App = () => {
@@ -44,7 +47,7 @@ const App = () => {
   const [isSemantic, setIsSemantic] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [activeView, setActiveView] = useState<'all' | 'categories' | 'tags' | 'settings' | 'graph' | 'resurface' | 'import'>('all');
+  const [activeView, setActiveView] = useState<'all' | 'categories' | 'tags' | 'settings' | 'graph' | 'resurface' | 'import' | 'logs'>('all');
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [folders, setFolders] = useState<string[]>(['General']);
   const [newFolderName, setNewFolderName] = useState('');
@@ -74,7 +77,17 @@ const App = () => {
   const [licenseError, setLicenseError] = useState('');
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { loadBookmarks(); loadFolders(); syncService.getSyncConfig().then(setSyncConfig); authService.getUser().then(setAuthUser); }, []);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+
+  useEffect(() => { 
+    loadBookmarks(); 
+    loadFolders(); 
+    syncService.getSyncConfig().then(setSyncConfig); 
+    authService.getUser().then(setAuthUser); 
+    setLogs(logger.getLogs());
+    const interval = setInterval(() => setLogs(logger.getLogs()), 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   const loadBookmarks = async (silent = false) => {
     if(!silent) setIsLoading(true);
@@ -125,8 +138,8 @@ const App = () => {
     <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-24">
       <header className="space-y-2">
         <div className="flex items-center gap-3 text-indigo-400 mb-2"><Settings size={20} /><span className="text-[10px] font-black uppercase tracking-widest opacity-70">Configuration</span></div>
-        <h1 className="text-5xl font-black tracking-tighter">System Control</h1>
-        <p className="text-zinc-500 font-medium">Versioning: v0.6.0 Stable</p>
+        <h1 className="text-5xl font-black tracking-tighter text-neural">System Control</h1>
+        <p className="text-zinc-500 font-medium">Versioning: v{APP_VERSION} Stable</p>
       </header>
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl space-y-6">
@@ -149,12 +162,34 @@ const App = () => {
     </div>
   );
 
+  const renderLogsView = () => (
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <header className="flex justify-between items-end">
+        <div>
+          <h1 className="text-4xl font-black tracking-tighter text-neural">System Trace</h1>
+          <p className="text-zinc-500 font-medium">Deep inspection of AI activity, Importer events, and Neural Link health.</p>
+        </div>
+        <button onClick={() => { logger.clearLogs(); setLogs([]); }} className="px-6 py-2 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-rose-500 hover:text-white transition-all">Flush Logs</button>
+      </header>
+      <div className="space-y-3 font-mono text-[11px]">
+        {logs.map((l, i) => (
+          <div key={i} className={`p-4 glass-card border-white/5 flex gap-6 items-center ${l.level === 'error' ? 'bg-rose-500/5 border-rose-500/20' : ''}`}>
+            <span className="opacity-30 w-24 shrink-0">{l.timestamp.split('T')[1].split('.')[0]}</span>
+            <span className={`font-black uppercase w-20 shrink-0 ${l.level === 'error' ? 'text-rose-500' : 'text-indigo-400'}`}>{l.module}</span>
+            <span className={`flex-1 ${l.level === 'error' ? 'text-rose-400' : 'text-zinc-300'}`}>{l.message}</span>
+          </div>
+        ))}
+        {logs.length === 0 && <div className="py-40 text-center text-zinc-800 font-black uppercase tracking-[0.5em] glass-card border-dashed">No Activity Logged</div>}
+      </div>
+    </div>
+  );
+
   const renderStandardView = () => (
     <div className="animate-in fade-in slide-in-from-bottom-4">
       <header className="mb-12 flex flex-col gap-8">
         <div className="flex justify-between items-end">
-          <div><h1 className="text-4xl font-black tracking-tighter mb-2">Knowledge Vault</h1><p className="text-zinc-500 font-medium">{bookmarks.length} memories captured • v0.6.0</p></div>
-          {activeView === 'categories' && <button onClick={() => setIsCreatingFolder(true)} className="px-4 py-2 bg-emerald-500/5 text-emerald-400 border border-emerald-500/10 rounded-full text-[10px] font-black uppercase">+ New Folder</button>}
+          <div><h1 className="text-4xl font-black tracking-tighter mb-2 text-neural">Knowledge Vault</h1><p className="text-zinc-500 font-medium">{bookmarks.length} memories captured • v{APP_VERSION}</p></div>
+          {activeView === 'categories' && <button onClick={() => setIsCreatingFolder(true)} className="px-5 py-2 glass-card text-emerald-400 border-emerald-500/10 rounded-full text-[10px] font-black uppercase">+ New Folder</button>}
         </div>
         {isCreatingFolder && <div className="flex gap-4 p-6 bg-zinc-900/50 border border-zinc-800 rounded-2xl"><input ref={folderInputRef} value={newFolderName} onChange={e=>setNewFolderName(e.target.value)} className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4" /><button onClick={handleCreateFolder} className="bg-emerald-600 px-4 py-2 rounded-lg text-xs font-black uppercase">Create</button></div>}
         <div className="flex gap-4 items-center bg-zinc-900/40 p-2 rounded-2xl border border-zinc-800">
@@ -186,17 +221,21 @@ const App = () => {
         <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center mb-10"><Brain className="text-white" size={24} /></div>
         <div className="flex flex-col gap-6">
           <button onClick={()=>setActiveView('all')} title="Main"><LayoutGrid size={24}/></button>
-          <button onClick={()=>setActiveView('categories')} title="Folders"><FolderOpen size={24}/></button>
-          <button onClick={()=>setActiveView('import')} title="Import"><Upload size={24}/></button>
-          <button onClick={()=>setActiveView('settings')} title="Settings"><Settings size={24}/></button>
+          <button onClick={()=>setActiveView('categories')} className={`transition-all ${activeView==='categories'?'text-indigo-400':'text-zinc-600'}`} title="Folders"><FolderOpen size={22}/></button>
+          <button onClick={()=>setActiveView('import')} className={`transition-all ${activeView==='import'?'text-indigo-400':'text-zinc-600'}`} title="Import"><Upload size={22}/></button>
+          <button onClick={()=>setActiveView('logs')} className={`transition-all ${activeView==='logs'?'text-indigo-400':'text-zinc-600'}`} title="System Trace"><Terminal size={22}/></button>
+          <button onClick={()=>setActiveView('settings')} className={`transition-all ${activeView==='settings'?'text-indigo-400':'text-zinc-600'}`} title="Settings"><Settings size={22}/></button>
         </div>
       </nav>
-      <main className="pl-32 pr-12 py-12">
+      <main className="pl-32 pr-12 py-12 relative z-10">
         {activeView === 'settings' && renderSettingsView()}
         {activeView === 'import' && renderImportView()}
         {activeView === 'resurface' && renderResurfaceView()}
+        {activeView === 'logs' && renderLogsView()}
         {(activeView === 'all' || activeView === 'categories') && renderStandardView()}
       </main>
+      <div className="fixed top-1/4 -right-64 w-[500px] h-[500px] bg-indigo-600/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="fixed bottom-1/4 -left-64 w-[500px] h-[500px] bg-violet-600/5 rounded-full blur-[120px] pointer-events-none" />
     </div>
   );
 };

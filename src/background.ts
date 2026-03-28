@@ -149,29 +149,29 @@ async function handleSaveAnnotation(request: { text: string; url: string; title:
 }
 
 import { APP_VERSION, DEFAULT_FOLDER, ROOT_SKIP_FOLDERS } from './constants';
-
-// ... (existing imports, assuming they are above)
-
-  async function handleImportChromeBookmarks() {
+async function handleImportChromeBookmarks() {
   try {
     // 1. Force a clean DB handle in the background worker
     if ((dbService as any).reinit) (dbService as any).reinit();
     
     const tree = await chrome.bookmarks.getTree();
-    const flat: { url: string; title: string; folder: string }[] = [];
+    const flat: { id?: string; url: string; title: string; folder: string }[] = [];
     const ROOT_SKIP = new Set(ROOT_SKIP_FOLDERS);
 
-    // Stack-based, non-recursive walk to prevent closure overlap and memory limits
+    // Stack-based, non-recursive walk to handle multiple root nodes (Bar, Other, Mobile)
     const stack: { nodes: chrome.bookmarks.BookmarkTreeNode[], path: string[] }[] = [];
-    if (tree[0]?.children) {
-      stack.push({ nodes: tree[0].children, path: [] });
-    }
+    tree.forEach(root => {
+      if (root.children) {
+        stack.push({ nodes: root.children, path: [] });
+      }
+    });
 
     while (stack.length > 0) {
       const { nodes, path } = stack.pop()!;
       for (const node of nodes) {
         if (node.url) {
           flat.push({ 
+            id: node.id,
             url: node.url, 
             title: node.title || node.url, 
             folder: path.join(' / ') || DEFAULT_FOLDER 
@@ -204,7 +204,7 @@ async function handleImportJsonBookmarks(bookmarks: { url: string; title: string
   }
 }
 
-async function batchImport(items: { url: string; title: string; folder: string }[]) {
+async function batchImport(items: { id?: string; url: string; title: string; folder: string }[]) {
   let imported = 0, skipped = 0;
 
   for (const item of items) {
@@ -213,7 +213,10 @@ async function batchImport(items: { url: string; title: string; folder: string }
         skipped++;
         continue;
       }
-      const existing = await dbService.getBookmarkByUrl(item.url);
+      // Dedeplicate by Chrome ID if possible, otherwise by URL
+      const id = item.id ? `bookmark_${item.id}` : null;
+      const existing = id ? await dbService.getBookmarkById(id) : await dbService.getBookmarkByUrl(item.url);
+
       if (existing) {
         if (item.folder && item.folder !== 'General' && existing.category !== item.folder) {
           await dbService.updateBookmark(existing._id, { category: item.folder });
@@ -228,6 +231,7 @@ async function batchImport(items: { url: string; title: string; folder: string }
       const tags: string[] = [];
 
       await dbService.addBookmark({
+        _id: id || undefined,
         url: item.url,
         title: item.title,
         textContent: item.title,

@@ -12,12 +12,15 @@ import {
   Copy,
   Check,
   Sparkles,
-  ChevronDown
+  ChevronDown,
+  Activity,
+  AlertCircle,
+  Terminal
 } from 'lucide-react'
 import { dbService, BookmarkDoc } from './services/db'
 import { aiService } from './services/ai'
 import { semanticSearch } from './services/semanticSearch'
-import { authService, AuthUser } from './services/authService'
+import { logger } from './services/logService'
 import { APP_VERSION } from './constants'
 import './index.css'
 
@@ -29,90 +32,16 @@ const TONES = [
 ] as const;
 type Tone = typeof TONES[number]['id'];
 
-function buildEmailDraft(
-  tone: Tone,
-  userPrompt: string,
-  pageTitle: string,
-  pageMeta: string,
-  pageBody: string,
-  vaultContext: BookmarkDoc[]
-): string {
-  const contextSnippets = vaultContext
-    .slice(0, 3)
-    .map(b => `• ${b.title}: ${(b.summary || '').slice(0, 120)}`)
-    .join('\n');
-
-  const pageExcerpt = pageBody.slice(0, 300).trim();
-
-  const subject = `Re: ${pageTitle.slice(0, 60)}`;
-
-  if (tone === 'professional') {
-    return `Subject: ${subject}\n\n` +
-      `Hi [Name],\n\n` +
-      `I wanted to reach out ${userPrompt ? `regarding your request: "${userPrompt}"` : 'about something I found relevant to our work'}.\n\n` +
-      `I recently came across "${pageTitle}", which touches on the following:\n\n` +
-      `"${pageExcerpt}..."\n\n` +
-      (contextSnippets ? `This aligns with research I've been tracking:\n${contextSnippets}\n\n` : '') +
-      `I believe this is directly relevant because ${pageMeta || 'it addresses key themes in this domain'}.\n\n` +
-      `I'd appreciate your thoughts or a brief call to discuss.\n\n` +
-      `Best regards,\n[Your Name]\n\n` +
-      `— Drafted by Brain Vault`;
-  }
-
-  if (tone === 'friendly') {
-    return `Subject: ${subject}\n\n` +
-      `Hey [Name],\n\n` +
-      `Just came across this and immediately thought of you — "${pageTitle}"!\n\n` +
-      `${userPrompt ? `You mentioned "${userPrompt}" — well, ` : ''}Here's the key takeaway:\n` +
-      `"${pageExcerpt}..."\n\n` +
-      (contextSnippets ? `And it connects to some of the things we've been talking about:\n${contextSnippets}\n\n` : '') +
-      `Thought you'd find it interesting. Let me know what you think!\n\n` +
-      `Cheers,\n[Your Name]\n\n` +
-      `— Drafted by Brain Vault`;
-  }
-
-  if (tone === 'persuasive') {
-    return `Subject: ${subject} — Why This Matters\n\n` +
-      `Hi [Name],\n\n` +
-      `Here's why you should pay attention to "${pageTitle}":\n\n` +
-      `${userPrompt ? `The core ask: ${userPrompt}\n\n` : ''}` +
-      `The evidence is clear:\n"${pageExcerpt}..."\n\n` +
-      (contextSnippets ? `This isn't isolated — it fits a broader pattern:\n${contextSnippets}\n\n` : '') +
-      `The window to act is now. I'd love to connect and show you the full picture.\n\n` +
-      `[Your Name]\n\n` +
-      `— Drafted by Brain Vault`;
-  }
-
-  // concise
-  return `Subject: ${subject}\n\n` +
-    `[Name] — ${userPrompt || `Quick note on "${pageTitle}"`}:\n\n` +
-    `"${pageExcerpt.slice(0, 150)}..."\n\n` +
-    `Worth a look. Happy to discuss.\n\n` +
-    `[Your Name]\n\n` +
-    `— Drafted by Brain Vault`;
-}
-
 // ── Render markdown-ish response text ─────────────────────────────────────────
 function ResponseText({ text }: { text: string }) {
   const lines = text.split('\n');
   return (
-    <div className="space-y-1 text-sm leading-relaxed text-zinc-300">
+    <div className="space-y-1.5 text-sm leading-relaxed text-zinc-200">
       {lines.map((line, i) => {
         if (line.startsWith('**') && line.endsWith('**')) {
-          return <p key={i} className="font-bold text-white">{line.slice(2, -2)}</p>;
+          return <p key={i} className="font-bold text-white tracking-tight">{line.slice(2, -2)}</p>;
         }
-        if (line.startsWith('**')) {
-          // inline bold: **X** ...
-          const parts = line.split(/\*\*(.*?)\*\*/g);
-          return (
-            <p key={i}>
-              {parts.map((p, j) =>
-                j % 2 === 1 ? <strong key={j} className="text-white">{p}</strong> : p
-              )}
-            </p>
-          );
-        }
-        if (line.startsWith('↗')) return <p key={i} className="text-indigo-400 text-xs truncate">{line}</p>;
+        if (line.startsWith('↗')) return <p key={i} className="text-indigo-400 text-[11px] font-bold tracking-tight bg-indigo-500/10 px-2 py-0.5 rounded-md inline-block mb-1">{line}</p>;
         if (line.startsWith('_') && line.endsWith('_')) return <p key={i} className="text-zinc-500 text-xs italic">{line.slice(1, -1)}</p>;
         if (!line.trim()) return <div key={i} className="h-2" />;
         return <p key={i}>{line}</p>;
@@ -122,13 +51,14 @@ function ResponseText({ text }: { text: string }) {
 }
 
 const SidePanel = () => {
-  const [activeTab, setActiveTab] = useState<'chat' | 'vault' | 'ghost'>('chat');
-
+  const [activeTab, setActiveTab] = useState<'chat' | 'vault' | 'ghost' | 'logs'>('chat');
+  const [aiHeartbeat, setAiHeartbeat] = useState<'readily' | 'after-download' | 'no' | 'checking'>('checking');
+  
   // Chat state
   const [query, setQuery] = useState('');
   const [isChatTyping, setIsChatTyping] = useState(false);
   const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([
-    { role: 'assistant', content: 'I\'m your Brain Vault assistant. Ask me anything about your saved memories — I use semantic understanding to find what you mean, not just what you typed.' }
+    { role: 'assistant', content: 'Welcome to your **Brain Vault**. I am your localized intelligence layer.' }
   ]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -144,215 +74,176 @@ const SidePanel = () => {
 
   useEffect(() => {
     loadRecent();
+    checkAI();
     const unsub = dbService.subscribeChanges(loadRecent);
     return () => unsub();
   }, []);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
+  }, [messages, isChatTyping]);
+
+  const checkAI = async () => {
+    try {
+      const status = await aiService.checkGenerativeAIAvailability();
+      setAiHeartbeat(status as any);
+      logger.info('AI', `Status check: ${status}`);
+    } catch (e) {
+      setAiHeartbeat('no');
+      logger.error('AI', 'Status check failed', e);
+    }
+  };
 
   const loadRecent = async () => {
     const all = await dbService.getAllBookmarks();
     setRecentBookmarks(all.slice(0, 10));
   };
 
-    // ── Brain Chat — True Local AI ──────────────────────────────────────────────
   const handleChat = async (directQuery?: string) => {
-    const q = typeof directQuery === 'string' ? directQuery : query;
+    const q = directQuery || query;
     if (!q.trim()) return;
+    
     setMessages(prev => [...prev, { role: 'user', content: q }]);
     setQuery('');
     setIsChatTyping(true);
-    let aiStatus = 'unknown';
-
+    
     try {
-      aiStatus = await aiService.checkGenerativeAIAvailability();
-      const needsContext = /page|summarize|takeaway|insight/i.test(q);
+      logger.info('Chat', `User query: ${q.slice(0, 50)}...`);
+      const { results } = await semanticSearch.searchWithContext(q, 3);
       
-      let pageContext = '';
-      let pageUrl = '';
-      if (needsContext || aiStatus !== 'no') {
-        try {
-          // @ts-ignore
-          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-          if (tab?.id) {
-            pageUrl = tab.url || '';
-            // @ts-ignore
-            const [{ result }] = await chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              func: () => document.body.innerText.slice(0, 3000)
-            }) as any[];
-            pageContext = result || '';
-          }
-        } catch (e) {}
-      }
-
-      const { responseText, results } = await semanticSearch.searchWithContext(q, 3);
+      const vaultContext = results.map(r => `• ${r.bookmark.title}: ${r.bookmark.summary}`).join('\n');
       
-      if (aiStatus !== 'no' && !aiStatus.startsWith('missing') && !aiStatus.startsWith('detached')) {
-        const vaultContext = results.map(r => `[Vault] ${r.bookmark.title}: ${r.bookmark.summary}`).join('\\n');
-        const prompt = `You are Brain Vault AI. Answer the user's query accurately.
-
-User Query: ${q}
-
-Current Page Content:
-${pageContext.slice(0, 2000)}
-
-Relevant Vault Memories:
-${vaultContext}
-
-Answer concisely and format your output in markdown. Use bold and bullet points.`;
+      if (aiHeartbeat === 'readily' || aiHeartbeat === 'after-download') {
+        const prompt = `You are Brain Vault AI. Answer the query using the context provided.\n\nQuery: ${q}\n\nContext:\n${vaultContext}\n\nAnswer concisely in markdown. Use bold and lists.`;
         const aiResponse = await aiService.generateText(prompt);
         setMessages(prev => [...prev, { role: 'assistant', content: aiResponse }]);
+        logger.info('Chat', 'AI responded successfully');
       } else {
-        if (needsContext) {
-           const resolution = aiStatus.startsWith('detached_factory') 
-             ? "Chrome is suppressing the AI runtime. Please ensure `chrome://flags/#optimization-guide-on-device-model` is set to **Enabled BypassPerfRequirement**."
-             : `To analyze "this page", enable Chrome's **Prompt API for Gemini Nano** flag. Status: **${aiStatus}**.`;
-             
-           setMessages(prev => [...prev, { role: 'assistant', content: `${resolution} Without it, I can only search existing memories.` }]);
-        } else {
-           setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
-        }
+        const { responseText } = await semanticSearch.searchWithContext(q, 3);
+        setMessages(prev => [...prev, { role: 'assistant', content: `[Neural Link Offline] I'm using local fallback matching:\n\n${responseText}` }]);
+        logger.warn('Chat', 'AI offline, using fallback');
       }
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Neural link error: ' + (err as Error).message + '. Status: ' + aiStatus }]);
+      const msg = (err as Error).message;
+      setMessages(prev => [...prev, { role: 'assistant', content: `**Neural link interrupted.**\n_${msg}_` }]);
+      logger.error('Chat', 'Interaction failed', err);
     } finally {
       setIsChatTyping(false);
     }
   };
 
-  // ── Ghost Writer — True Local AI ────────────────────────────────────────────
   const handleGhostWrite = async () => {
     if (!ghostPrompt.trim()) return;
     setIsGhostTyping(true);
-    setGhostDraft('Synthesizing draft with True Local AI...');
+    setGhostDraft('Neural drafting in progress...');
     
     try {
-      const aiStatus = await aiService.checkGenerativeAIAvailability();
-      
+      logger.info('Ghost', `Starting draft with tone: ${ghostTone}`);
       // @ts-ignore
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id) throw new Error('No active tab');
+      if (!tab?.id) throw new Error('No active tab detected');
 
       // @ts-ignore
       const [{ result }] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: () => ({
-          title: document.title,
-          body: document.body.innerText.slice(0, 3000),
-        }),
+        func: () => ({ title: document.title, body: document.body.innerText.slice(0, 2000) }),
       }) as any[];
-      const ctx = result;
 
       const { results: vaultCtx } = await semanticSearch.searchWithContext(ghostPrompt, 3);
-      const vaultText = vaultCtx.map(r => `- ${r.bookmark.title}: ${r.bookmark.summary}`).join('\\n');
+      const vaultText = vaultCtx.map(r => `- ${r.bookmark.title}: ${r.bookmark.summary}`).join('\n');
 
-      if (aiStatus === 'readily' || aiStatus === 'after-download') {
-        const prompt = `You are an expert Ghost Writer. Write an email drafting the following request.\nTone: ${ghostTone}\nInstructions: ${ghostPrompt}\n\nContext from current webpage title: ${ctx.title}\nWebpage content: ${ctx.body.slice(0,1000)}\n\nRelated facts from user's vault:\n${vaultText}\n\nWrite only the email draft, nothing else. Do not hallucinate data not provided in the context.`;
-        const draft = await aiService.generateText(prompt);
-        setGhostDraft(draft);
-      } else {
-        const resolution = aiStatus.startsWith('detached_factory') 
-          ? "Chrome is suppressing the AI runtime. Please ensure \\`chrome://flags/#optimization-guide-on-device-model\\` is set to **Enabled BypassPerfRequirement**."
-          : "Please enable Chrome's **Prompt API for Gemini Nano** flag to use Ghost Writer email generation.";
-          
-        setGhostDraft(`[Generative AI currently disabled]\n\nStatus: ${aiStatus}\n\n${resolution}\n\nContext found for your prompt:\n${vaultText}`);
-      }
+      const prompt = `Ghost Write an email.\nRequest: ${ghostPrompt}\nTone: ${ghostTone}\nPage Context: ${result.title}\nVault Context:\n${vaultText}\n\nWrite only the email draft.`;
+      
+      const draft = await aiService.generateText(prompt);
+      setGhostDraft(draft);
+      logger.info('Ghost', 'Draft completed');
     } catch (err) {
-      setGhostDraft('Error: ' + (err as Error).message);
+      setGhostDraft(`Failed to synthesize draft: ${(err as Error).message}`);
+      logger.error('Ghost', 'Drafting failed', err);
     } finally {
       setIsGhostTyping(false);
     }
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(ghostDraft);
-    setIsCopying(true);
-    setTimeout(() => setIsCopying(false), 2000);
-  };
-
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100 font-sans border-l border-zinc-900 overflow-hidden">
-      {/* Header */}
-      <header className="p-4 border-b border-zinc-900 bg-zinc-950/50 backdrop-blur-xl flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-600/20">
-            <Brain size={18} className="text-white" />
+    <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100 font-sans border-l border-white/5 overflow-hidden">
+      {/* Premium Header */}
+      <header className="p-5 glass-surface border-b border-white/5 z-20">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 neural-gradient rounded-xl flex items-center justify-center shadow-lg neural-glow animate-pulse-slow">
+              <Brain size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="font-black text-sm tracking-tight text-white">Brain Vault</h1>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">{APP_VERSION}</span>
+                <span className={`w-1.5 h-1.5 rounded-full ${aiHeartbeat === 'readily' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'}`} />
+              </div>
+            </div>
           </div>
-          <div className="flex items-baseline gap-2">
-            <h1 className="font-black text-sm tracking-tight">Brain Vault</h1>
-            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.6.0</span>
+          <div className="flex gap-1.5 p-1 bg-zinc-900/50 rounded-xl border border-white/5">
+            {[ 
+              { id: 'chat', icon: MessageSquare }, 
+              { id: 'ghost', icon: PenTool }, 
+              { id: 'vault', icon: LayoutGrid },
+              { id: 'logs', icon: Terminal }
+            ].map(t => (
+              <button key={t.id} onClick={() => setActiveTab(t.id as any)} className={`p-2 rounded-lg transition-all ${activeTab === t.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                <t.icon size={16} />
+              </button>
+            ))}
           </div>
-        </div>
-        <div className="flex bg-zinc-900 rounded-lg p-1">
-          <button onClick={() => setActiveTab('chat')} className={`p-1.5 rounded-md transition-all ${activeTab === 'chat' ? 'bg-zinc-800 text-indigo-400' : 'text-zinc-500'}`} title="Brain Chat">
-            <MessageSquare size={16} />
-          </button>
-          <button onClick={() => setActiveTab('ghost')} className={`p-1.5 rounded-md transition-all ${activeTab === 'ghost' ? 'bg-zinc-800 text-indigo-400' : 'text-zinc-500'}`} title="Ghost Writer">
-            <PenTool size={16} />
-          </button>
-          <button onClick={() => setActiveTab('vault')} className={`p-1.5 rounded-md transition-all ${activeTab === 'vault' ? 'bg-zinc-800 text-indigo-400' : 'text-zinc-500'}`} title="Vault Browser">
-            <LayoutGrid size={16} />
-          </button>
         </div>
       </header>
 
       <div className="flex-1 overflow-hidden relative">
+        {/* Background glow effects */}
+        <div className="absolute top-1/4 -right-24 w-64 h-64 bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-1/4 -left-24 w-64 h-64 bg-violet-600/10 rounded-full blur-[100px] pointer-events-none" />
 
         {/* ── Chat Tab ── */}
         {activeTab === 'chat' && (
-          <div className="flex flex-col h-full">
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+          <div className="flex flex-col h-full z-10 relative">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-5 scrollbar-hide">
               {messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-                  <div className={`max-w-[88%] p-4 rounded-2xl ${
+                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-3 duration-500`}>
+                  <div className={`max-w-[90%] p-4 rounded-2xl ${
                     m.role === 'user'
-                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 font-medium text-sm'
-                      : 'bg-zinc-900 border border-zinc-800'
+                      ? 'neural-gradient text-white shadow-xl shadow-indigo-600/10 font-medium text-sm'
+                      : 'glass-card border-white/10'
                   }`}>
                     {m.role === 'assistant' ? <ResponseText text={m.content} /> : m.content}
                   </div>
                 </div>
               ))}
               {isChatTyping && (
-              <div className="flex gap-3 animate-in fade-in slide-in-from-bottom-2">
-                <div className="w-8 h-8 rounded-xl bg-zinc-900 flex items-center justify-center border border-zinc-800">
-                  <Brain size={14} className="text-zinc-600 animate-pulse" />
-                </div>
-                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-none p-4 max-w-[85%]">
-                  <div className="flex gap-1">
-                    <div className="w-1.5 h-1.5 bg-zinc-700 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                    <div className="w-1.5 h-1.5 bg-zinc-700 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                    <div className="w-1.5 h-1.5 bg-zinc-700 rounded-full animate-bounce" />
+                <div className="flex gap-3 items-center animate-in fade-in">
+                  <div className="w-8 h-8 rounded-xl glass-card flex items-center justify-center">
+                    <Activity size={14} className="text-indigo-400 animate-pulse" />
+                  </div>
+                  <div className="glass-card-compact px-4 py-3 rounded-2xl rounded-tl-none border-white/5">
+                    <div className="flex gap-1.5">
+                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
             </div>
-            <div className="p-4 bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent">
-              <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-hide pb-1">
-                {['Summarize this page', 'Key takeaways', 'Main insights'].map(hint => (
-                  <button 
-                    key={hint} 
-                    onClick={() => handleChat(hint)}
-                    className="whitespace-nowrap px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-400 hover:text-indigo-400 transition-colors"
-                  >
+            
+            <div className="p-5 glass-surface border-t border-white/5">
+              <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide">
+                {['Summarize page', 'Key insights', 'Search Vault'].map(hint => (
+                  <button key={hint} onClick={() => handleChat(hint)} className="whitespace-nowrap px-4 py-2 glass-card hover:bg-zinc-800/50 rounded-xl text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-all">
                     {hint}
                   </button>
                 ))}
               </div>
               <div className="relative group">
-                <input
-                  type="text"
-                  placeholder="Ask your Brain..."
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleChat()}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-3 pl-10 pr-4 focus:outline-none focus:border-indigo-500/50 transition-all text-sm font-medium placeholder:text-zinc-700"
-                />
-                <Zap className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-700 group-focus-within:text-indigo-400 transition-colors" size={16} />
+                <input type="text" placeholder="Engage Neural Link..." value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleChat()} className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:border-indigo-500/50 transition-all text-sm font-medium placeholder:text-zinc-700" />
+                <Zap className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-indigo-400 transition-colors" size={18} />
               </div>
             </div>
           </div>
@@ -360,64 +251,37 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
 
         {/* ── Ghost Writer Tab ── */}
         {activeTab === 'ghost' && (
-          <div className="h-full overflow-y-auto p-4 space-y-5 animate-in fade-in duration-300">
-            <div className="p-5 bg-indigo-600/10 border border-indigo-500/20 rounded-3xl">
-              <h3 className="text-sm font-black mb-1 flex items-center gap-2">
-                <PenTool className="text-indigo-400" size={16} /> Ghost Writer
-              </h3>
-              <p className="text-xs text-zinc-400">Synthesise any page + your vault into a polished email draft.</p>
+          <div className="h-full overflow-y-auto p-5 space-y-6 z-10 relative scrollbar-hide">
+            <div className="p-6 neural-gradient rounded-[2rem] shadow-2xl neural-glow">
+              <h3 className="text-lg font-black mb-1 flex items-center gap-2 text-white"><PenTool size={20} /> Ghost Writer</h3>
+              <p className="text-xs text-indigo-100 font-medium opacity-80">Synthesize webpage and vault data into premium drafts.</p>
             </div>
 
-            {/* Tone picker */}
             <div className="grid grid-cols-2 gap-2">
               {TONES.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setGhostTone(t.id)}
-                  className={`py-2 rounded-xl text-xs font-bold transition-all ${ghostTone === t.id ? 'bg-indigo-600 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-zinc-300'}`}
-                >
+                <button key={t.id} onClick={() => setGhostTone(t.id)} className={`py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${ghostTone === t.id ? 'bg-white text-indigo-600' : 'glass-card text-zinc-500 hover:text-zinc-300'}`}>
                   {t.label}
                 </button>
               ))}
             </div>
 
-            {/* User prompt */}
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-2">Your Instruction (optional)</label>
-              <textarea
-                rows={2}
-                placeholder='e.g. "Write a cold outreach email to a VC about this article"'
-                value={ghostPrompt}
-                onChange={e => setGhostPrompt(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-xs text-zinc-300 focus:outline-none focus:border-indigo-500/40 resize-none font-medium placeholder:text-zinc-700"
-              />
+            <div className="space-y-4">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 block px-2">Instructions</label>
+              <textarea rows={3} placeholder='e.g. "Draft a summary for my team about this technical article"' value={ghostPrompt} onChange={e => setGhostPrompt(e.target.value)} className="w-full glass-card bg-zinc-900/20 border-white/5 px-5 py-4 text-xs text-zinc-100 focus:outline-none focus:border-indigo-500/30 resize-none font-medium placeholder:text-zinc-800" />
+              
+              <button disabled={isGhostTyping || !ghostPrompt.trim()} onClick={handleGhostWrite} className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all flex items-center justify-center gap-3 ${isGhostTyping || !ghostPrompt.trim() ? 'bg-zinc-900 text-zinc-700' : 'neural-gradient text-white shadow-2xl neural-glow'}`}>
+                <Sparkles size={18} /> {isGhostTyping ? 'Synthesizing...' : 'Generate Neural Draft'}
+              </button>
             </div>
 
-            <button
-                disabled={isGhostTyping || !ghostPrompt.trim()}
-                onClick={handleGhostWrite}
-                className={`w-full py-4 rounded-xl font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 ${isGhostTyping || !ghostPrompt.trim() ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20'}`}
-              >
-                <Sparkles size={16} />
-                {isGhostTyping ? 'Drafting...' : 'Generate Email Draft'}
-              </button>
-
             {ghostDraft && (
-              <div className="animate-in fade-in slide-in-from-top-4 duration-500 space-y-3">
+              <div className="animate-in fade-in slide-in-from-top-4 duration-700 space-y-4">
                 <div className="relative group">
-                  <textarea
-                    value={ghostDraft}
-                    onChange={e => setGhostDraft(e.target.value)}
-                    className="w-full h-72 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs text-zinc-300 focus:outline-none focus:border-indigo-500/30 leading-relaxed font-mono resize-none"
-                  />
-                  <button
-                    onClick={copyToClipboard}
-                    className="absolute top-3 right-3 p-2 bg-zinc-950/80 border border-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-all"
-                  >
-                    {isCopying ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                  <textarea value={ghostDraft} onChange={e => setGhostDraft(e.target.value)} className="w-full h-80 glass-card bg-zinc-950/40 p-5 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500/20 leading-relaxed font-mono resize-none border-white/5" />
+                  <button onClick={() => { navigator.clipboard.writeText(ghostDraft); setIsCopying(true); setTimeout(() => setIsCopying(false), 2000); }} className="absolute top-4 right-4 p-2.5 glass-surface border-white/10 rounded-xl text-zinc-400 hover:text-white transition-all">
+                    {isCopying ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
                   </button>
                 </div>
-                <p className="text-[10px] text-zinc-700 text-center font-medium">Edit freely above · Vault context auto-injected</p>
               </div>
             )}
           </div>
@@ -425,34 +289,40 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
 
         {/* ── Vault Tab ── */}
         {activeTab === 'vault' && (
-          <div className="h-full overflow-y-auto p-4 space-y-3 animate-in fade-in duration-300">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-4 flex items-center gap-2">
-              <History size={14} /> Recent Memories
-            </h3>
-            {recentBookmarks.map((b: BookmarkDoc) => (
-              <div
-                key={b._id}
-                className="p-4 bg-zinc-900/40 border border-zinc-800 rounded-2xl hover:border-indigo-500/30 group transition-all cursor-pointer"
-                onClick={() => dbService.touchAccessed(b._id)}
-              >
-                <div className="flex justify-between items-start mb-1">
-                  <p className="text-[9px] font-black uppercase text-indigo-500/80 tracking-tighter">{b.category || 'General'}</p>
-                  <a href={b.url} target="_blank" rel="noreferrer" className="text-zinc-700 hover:text-white transition-colors">
-                    <ExternalLink size={12} />
-                  </a>
-                </div>
-                <h4 className="font-bold text-xs leading-tight group-hover:text-indigo-400 transition-colors line-clamp-2">{b.title}</h4>
-                {b.summary && <p className="text-[10px] text-zinc-600 mt-1 line-clamp-1">{b.summary}</p>}
-                {b.annotations && b.annotations.length > 0 && (
-                  <p className="text-[9px] text-amber-500/70 mt-1">{b.annotations.length} annotation{b.annotations.length > 1 ? 's' : ''}</p>
-                )}
-              </div>
-            ))}
-            {recentBookmarks.length === 0 && (
-              <div className="py-20 text-center text-zinc-700 font-bold uppercase text-[9px] tracking-widest border border-dashed border-zinc-900/50 rounded-2xl">
-                No memories yet — save a page to get started
-              </div>
-            )}
+          <div className="h-full overflow-y-auto p-5 space-y-4 z-10 relative scrollbar-hide">
+             <div className="flex items-center justify-between mb-6">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2"><History size={14} /> Memories</h3>
+                <span className="text-[10px] font-black text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-full">{recentBookmarks.length}</span>
+             </div>
+             {recentBookmarks.map(b => (
+               <div key={b._id} className="p-5 glass-card hover:bg-zinc-800/30 group transition-all cursor-pointer border-white/5" onClick={() => dbService.touchAccessed(b._id)}>
+                 <div className="flex justify-between items-start mb-2">
+                   <p className="text-[9px] font-black uppercase text-indigo-400 tracking-widest">{b.category || 'General'}</p>
+                   <a href={b.url} target="_blank" rel="noreferrer" className="text-zinc-700 hover:text-white transition-colors"><ExternalLink size={14} /></a>
+                 </div>
+                 <h4 className="font-bold text-sm leading-snug group-hover:text-indigo-400 transition-colors line-clamp-2 text-zinc-100">{b.title}</h4>
+               </div>
+             ))}
+          </div>
+        )}
+
+        {/* ── Logs Tab ── */}
+        {activeTab === 'logs' && (
+          <div className="h-full overflow-hidden flex flex-col z-10 relative p-5">
+             <div className="flex items-center justify-between mb-6">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2"><Terminal size={14} /> System Trace</h3>
+                <button onClick={() => { logger.clearLogs(); setActiveTab('chat'); }} className="text-[10px] font-black text-rose-500 uppercase">Clear</button>
+             </div>
+             <div className="flex-1 overflow-y-auto space-y-3 font-mono text-[10px] scrollbar-hide">
+                {logger.getLogs().map((l, i) => (
+                  <div key={i} className={`p-3 rounded-lg border flex gap-3 ${l.level === 'error' ? 'bg-rose-500/5 border-rose-500/20 text-rose-400' : 'bg-zinc-900/50 border-white/5 text-zinc-500'}`}>
+                    <span className="opacity-40">{l.timestamp.split('T')[1].split('.')[0]}</span>
+                    <span className="font-black uppercase">{l.module}</span>
+                    <span className="flex-1 text-zinc-300">{l.message}</span>
+                  </div>
+                ))}
+                {logger.getLogs().length === 0 && <div className="text-center py-20 text-zinc-800 font-bold uppercase tracking-widest">No trace data available</div>}
+             </div>
           </div>
         )}
       </div>
@@ -460,6 +330,4 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
   );
 };
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode><SidePanel /></React.StrictMode>
-);
+ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><SidePanel /></React.StrictMode>);

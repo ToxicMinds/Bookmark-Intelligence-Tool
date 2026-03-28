@@ -147,16 +147,26 @@ export class AIService {
     // Modern API uses create(), older ones used createGenericSession() or similar
     let session;
     if (typeof api.create === 'function') {
-      session = await api.create({
-        expectedOutputLanguages: ['en'],
-        monitor(m: any) {
-          if (m?.addEventListener) {
-            m.addEventListener('downloadprogress', (e: any) => {
-              console.log(`Downloading AI model: ${e.loaded} / ${e.total}`);
-            });
+      try {
+        // Attempt the plural form (Chrome 140+ standard)
+        session = await api.create({
+          expectedOutputLanguages: ['en'],
+          monitor(m: any) {
+            if (m?.addEventListener) {
+              m.addEventListener('downloadprogress', (e: any) => {
+                console.log(`Downloading AI model: ${e.loaded} / ${e.total}`);
+              });
+            }
           }
+        });
+      } catch (e) {
+        // Fallback to singular (some Canary/Dev builds) or empty options
+        try {
+          session = await api.create({ expectedOutputLanguage: 'en' });
+        } catch (e2) {
+          session = await api.create();
         }
-      });
+      }
     } else if (typeof api.createTextSession === 'function') {
       session = await api.createTextSession();
     } else if (typeof api.createGenericSession === 'function') {

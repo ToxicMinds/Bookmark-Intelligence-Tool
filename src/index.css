@@ -2,8 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --neural-blue: #4f46e5;
+  --neural-purple: #7c3aed;
+  --neural-glow: rgba(79, 70, 229, 0.4);
+}
+
 @layer base {
   body {
-    @apply bg-zinc-950 text-zinc-100;
+    @apply bg-zinc-950 text-zinc-100 selection:bg-indigo-500/30 font-sans;
   }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-zinc-900/40 backdrop-blur-xl border border-white/5 rounded-3xl shadow-2xl;
+  }
+  
+  .glass-surface {
+    @apply bg-zinc-950/60 backdrop-blur-2xl border-white/5 shadow-inner;
+  }
+
+  .neural-glow {
+    box-shadow: 0 0 40px -10px var(--neural-glow);
+  }
+
+  .neural-gradient {
+    @apply bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-700;
+  }
+
+  .text-neural {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-violet-400;
+  }
+
+  /* Custom Scrollbar for the sidepanel */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
 }

@@ -64,15 +64,33 @@ export class DatabaseService {
     }
   }
 
-  async addBookmark(bookmark: Omit<BookmarkDoc, '_id' | 'type' | 'createdAt' | 'lastAccessed'>) {
-    const doc: BookmarkDoc = {
+  async addBookmark(bookmark: Omit<BookmarkDoc, '_id' | 'type' | 'createdAt' | 'lastAccessed'> & { _id?: string }) {
+    const id = bookmark._id || `bookmark_${Date.now()}`;
+    const newDoc: BookmarkDoc = {
       ...bookmark,
-      _id: `bookmark_${Date.now()}`,
+      _id: id,
       type: 'bookmark',
       createdAt: new Date().toISOString(),
       lastAccessed: new Date().toISOString(),
     };
-    return this.localDb.put(doc);
+    try {
+      return await this.localDb.put(newDoc);
+    } catch (err: any) {
+      if (err.status === 409) {
+        // Conflict - already exists, update it instead
+        const existing = await this.localDb.get(id);
+        return await this.localDb.put({ ...existing, ...newDoc, _rev: existing._rev });
+      }
+      throw err;
+    }
+  }
+
+  async getBookmarkById(id: string): Promise<BookmarkDoc | null> {
+    try {
+      return await this.localDb.get(id) as BookmarkDoc;
+    } catch {
+      return null;
+    }
   }
 
   async getBookmarkByUrl(url: string): Promise<BookmarkDoc | null> {
