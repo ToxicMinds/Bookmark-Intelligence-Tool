@@ -608,8 +608,12 @@ const App = () => {
                 </div>
                 <button onClick={async () => {
                   if(window.confirm('Delete all bookmarks? This cannot be undone.')) {
-                    await (dbService as any).localDb.destroy();
-                    window.location.reload();
+                    try {
+                      await (dbService as any).localDb.destroy();
+                      chrome.runtime.reload();
+                    } catch (e) {
+                      window.location.reload();
+                    }
                   }
                 }} className="w-full bg-rose-500/10 hover:bg-rose-500/20 shadow-lg shadow-rose-500/5 text-rose-500 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all">Clear Vault Entirely</button>
               </div>

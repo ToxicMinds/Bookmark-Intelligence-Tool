@@ -99,14 +99,13 @@ export class AIService {
           keys.push(key);
           try {
             const obj = (globalThis as any)[key];
-            if (obj && (obj.languageModel || obj.assistant || typeof obj.capabilities === 'function' || obj.createGenericSession)) {
+            if (obj && (obj.languageModel || obj.assistant || typeof obj.capabilities === 'function' || typeof obj.create === 'function' || obj.createGenericSession)) {
               return { api: obj.languageModel || obj.assistant || obj, diagnostic: `found_in_window_${key}` };
             }
           } catch (e) {}
         }
       }
     } catch(e) {}
-
 
     // 3. Brute-force scanning of navigator
     if (typeof navigator !== 'undefined') {
@@ -115,12 +114,16 @@ export class AIService {
           keys.push('nav_' + key);
           try {
             const obj = (navigator as any)[key];
-            if (obj && (obj.languageModel || obj.assistant || typeof obj.capabilities === 'function' || obj.createGenericSession)) {
+            if (obj && (obj.languageModel || obj.assistant || typeof obj.capabilities === 'function' || typeof obj.create === 'function' || obj.createGenericSession)) {
               return { api: obj.languageModel || obj.assistant || obj, diagnostic: `found_in_nav_${key}` };
             }
           } catch (e) {}
         }
       }
+    }
+
+    if (keys.includes('LanguageModel')) {
+      return { api: null, diagnostic: `detached_factory_${keys.join(',')}` };
     }
 
     return { api: null, diagnostic: `missing_api_scanned_${keys.join(',')}` };
@@ -133,7 +136,6 @@ export class AIService {
     
     try {
       // Chrome 134+ moved to using api.capabilities() returning { available: 'readily' }
-      // Older origin trial used api.canCreateGenericSession?
       if (typeof api.capabilities === 'function') {
         const caps = await api.capabilities();
         return caps.available; 

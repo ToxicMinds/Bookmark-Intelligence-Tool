@@ -186,7 +186,7 @@ const SidePanel = () => {
 
       const { responseText, results } = await semanticSearch.searchWithContext(q, 3);
       
-      if (aiStatus !== 'no') {
+      if (aiStatus !== 'no' && !aiStatus.startsWith('missing') && !aiStatus.startsWith('detached')) {
         const vaultContext = results.map(r => `[Vault] ${r.bookmark.title}: ${r.bookmark.summary}`).join('\\n');
         const prompt = `You are Brain Vault AI. Answer the user's query accurately.
 
@@ -203,12 +203,11 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
         setMessages(prev => [...prev, { role: 'assistant', content: aiResponse }]);
       } else {
         if (needsContext) {
-           setMessages(prev => [...prev, { role: 'assistant', content: `To analyze "this page", please enable Google Chrome's Built-in AI Prompt API. Without it, I can only search your existing vault memories.
-
-**To enable:**
-1. Go to \`chrome://flags/#prompt-api-for-extension\` and enable it
-2. Go to \`chrome://flags/#optimization-guide-on-device-model\` and select Enabled BypassPerfRequirement
-3. Restart Chrome` }]);
+           const resolution = aiStatus.startsWith('detached_factory') 
+             ? "Chrome is suppressing the AI runtime. Please ensure `chrome://flags/#optimization-guide-on-device-model` is literally set to **Enabled BypassPerfRequirement**."
+             : `To analyze "this page", Chrome's Built-in AI is required. Current status: **${aiStatus}**.`;
+             
+           setMessages(prev => [...prev, { role: 'assistant', content: `${resolution} Without it, I can only search existing vault memories.` }]);
         } else {
            setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
         }
@@ -251,7 +250,11 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
         const draft = await aiService.generateText(prompt);
         setGhostDraft(draft);
       } else {
-        setGhostDraft(`[Generative AI currently disabled]\n\nStatus: ${aiStatus}\n\nPlease enable Chrome's Built-in AI to use Ghost Writer email generation.\n\n**To enable:**\n1. Go to chrome://flags/#prompt-api-for-extension\n2. Enable the flag\n3. Restart Chrome\n\nContext found for your prompt:\n${vaultText}`);
+        const resolution = aiStatus.startsWith('detached_factory') 
+          ? "Chrome is suppressing the AI runtime. Please ensure \\`chrome://flags/#optimization-guide-on-device-model\\` is literally set to **Enabled BypassPerfRequirement**."
+          : "Please enable Chrome's Built-in AI to use Ghost Writer email generation by turning on the Gemini Nano flag.";
+          
+        setGhostDraft(`[Generative AI currently disabled]\n\nStatus: ${aiStatus}\n\n${resolution}\n\nContext found for your prompt:\n${vaultText}`);
       }
     } catch (err) {
       setGhostDraft('Error: ' + (err as Error).message);
@@ -276,7 +279,7 @@ Answer concisely and format your output in markdown. Use bold and bullet points.
           </div>
           <div className="flex items-baseline gap-2">
             <h1 className="font-black text-sm tracking-tight">Brain Vault</h1>
-            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.5.6</span>
+            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">v0.5.7</span>
           </div>
         </div>
         <div className="flex bg-zinc-900 rounded-lg p-1">
